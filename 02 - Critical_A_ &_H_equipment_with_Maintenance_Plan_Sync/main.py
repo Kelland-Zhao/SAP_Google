@@ -390,14 +390,13 @@ def upload_to_google_sheets(data, sheet_id, worksheet_name, auth_file):
                 target_row = idx + 1
                 break
         
+        update_data = [data['equipments_with_plan'], data['total_equipments'], data['percentage']]
         if target_row:
-            worksheet.update_cell(target_row, 8, data['equipments_with_plan'])
-            worksheet.update_cell(target_row, 9, data['total_equipments'])
-            worksheet.update_cell(target_row, 10, data['percentage'])
+            worksheet.update(f'H{target_row}:J{target_row}', [update_data])
             print(f"✅ 已更新月份 {data['month']} 的数据（第 {target_row} 行，H-J 列）")
         else:
-            update_data = [data['month'], '', '', '', '', '', '', data['equipments_with_plan'], data['total_equipments'], data['percentage']]
-            worksheet.append_row(update_data, value_input_option='USER_ENTERED')
+            new_row = [data['month'], '', '', '', '', '', ''] + update_data
+            worksheet.append_row(new_row, value_input_option='USER_ENTERED')
             print(f"✅ 已添加月份 {data['month']} 的新行（H-J 列）")
         
         return True
@@ -432,13 +431,12 @@ def upload_no_plan_equipments(equipments, sheet_id, auth_file):
         sheet_name = '无保养计划A类设备'
         try:
             worksheet = sh.worksheet(sheet_name)
-            worksheet.clear()
         except gspread.exceptions.WorksheetNotFound:
-            worksheet = sh.add_worksheet(title=sheet_name, rows=str(len(equipments) + 2), cols="3")
+            worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="3")
+            worksheet.update('A1:C1', [['设备编号', '描述', '月份']])
 
-        worksheet.update('A1:C1', [['设备编号', '描述', '月份']])
         if equipments:
-            worksheet.update(f'A2:C{len(equipments) + 1}', equipments)
+            worksheet.append_rows(equipments, value_input_option='USER_ENTERED')
 
         print(f"✅ 已上传 {len(equipments)} 个无保养计划A类设备到 '{sheet_name}'")
         return True
