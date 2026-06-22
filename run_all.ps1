@@ -11,8 +11,7 @@ $Projects = @(
     "04 - Total_Workorder",
     "05 - Stock_Turnover",
     "06 - IM_Equipment_Number",
-    "07 - Inventory_MB52",
-    "08 - WorkOrderAutoAcquisition"
+    "07 - Inventory_MB52"
 )
 
 $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
