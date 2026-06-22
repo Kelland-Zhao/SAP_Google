@@ -10,4 +10,4 @@ logs/
 .vscode/
 .idea/
 *.log
-pyreadsp-b5b9c1909de6.json
+**/pyreadsp*.json
