@@ -348,7 +348,7 @@ def upload_no_plan(equipments, sheet_id, auth_file):
                 keep_rows.append(row)
         if len(keep_rows) < len(all_rows):
             worksheet.clear()
-            worksheet.update('A1', [keep_rows], value_input_option='USER_ENTERED')
+            worksheet.update(keep_rows, 'A1', value_input_option='USER_ENTERED')
             print(f"  已清除当月旧数据 {len(all_rows) - len(keep_rows)} 行")
         worksheet.append_rows(equipments, value_input_option='USER_ENTERED')
     print(f"  ✅ 已上传 {len(equipments)} 个无保养计划A类设备")
