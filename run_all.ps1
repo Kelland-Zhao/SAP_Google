@@ -76,3 +76,7 @@ Write-Host "  结束: $EndTime"
 Write-Host "========================================"
 
 "[$EndTime] ========== 全部完成 (成功: $Success, 失败: $Failed) ==========" | Out-File -Append $LogFile -Encoding UTF8
+
+# 强制关闭残留的 Excel 进程
+taskkill /f /im excel.exe 2>$null
+Write-Host "Excel 进程已清理。"
