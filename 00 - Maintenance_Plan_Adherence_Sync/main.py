@@ -75,7 +75,7 @@ def process_maintenance_data(excel_file_path, year_month):
         'month': year_month,
         'executed': executed_count,
         'planned': total_planned,
-        'adherence_pct': f"{adherence}"
+        'adherence_pct': adherence
     }
 
 
