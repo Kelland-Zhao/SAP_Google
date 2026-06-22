@@ -21,11 +21,11 @@ $FailedList = @()
 
 $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-Host "========================================"
-Write-Host "  SAP 自动运行 - 共 $Total 个项目"
-Write-Host "  开始时间: $Timestamp"
+Write-Host "  SAP Auto Run - $Total projects"
+Write-Host "  Start: $Timestamp"
 Write-Host "========================================"
 Write-Host ""
-"[$Timestamp] ========== 开始执行全部项目 ==========" | Out-File -Append $LogFile -Encoding UTF8
+"[$Timestamp] ========== START ==========" | Out-File -Append $LogFile -Encoding UTF8
 
 $Index = 0
 foreach ($Project in $Projects) {
@@ -34,7 +34,7 @@ foreach ($Project in $Projects) {
     $MainPy = Join-Path $ProjectPath "main.py"
     
     if (-not (Test-Path $MainPy)) {
-        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 跳过 $Project : main.py 不存在"
+        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] SKIP $Project : main.py not found"
         Write-Host $Msg -ForegroundColor Yellow
         $Msg | Out-File -Append $LogFile -Encoding UTF8
         $Failed++
@@ -42,18 +42,18 @@ foreach ($Project in $Projects) {
         continue
     }
     
-    $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 执行中 $Project ..."
+    $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] RUN  $Project ..."
     Write-Host $Msg
     $Msg | Out-File -Append $LogFile -Encoding UTF8
     
     $Process = Start-Process -FilePath $Python -ArgumentList "`"$MainPy`"" -WorkingDirectory $ProjectPath -Wait -NoNewWindow -PassThru
     
     if ($Process.ExitCode -eq 0) {
-        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 完成 $Project"
+        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] PASS $Project"
         Write-Host $Msg -ForegroundColor Green
         $Success++
     } else {
-        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 失败 $Project (退出码: $($Process.ExitCode))"
+        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] FAIL $Project (exit: $($Process.ExitCode))"
         Write-Host $Msg -ForegroundColor Red
         $Failed++
         $FailedList += $Project
@@ -64,16 +64,15 @@ foreach ($Project in $Projects) {
 
 $EndTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-Host "========================================"
-Write-Host "  执行总结"
-Write-Host "  总计: $Total | 成功: $Success | 失败: $Failed"
+Write-Host "  SUMMARY"
+Write-Host "  Total: $Total | Pass: $Success | Fail: $Failed"
 if ($FailedList.Count -gt 0) {
-    Write-Host "  失败项目:"
+    Write-Host "  Failed:"
     foreach ($f in $FailedList) {
         Write-Host "    - $f" -ForegroundColor Red
     }
 }
-Write-Host "  结束时间: $EndTime"
+Write-Host "  End: $EndTime"
 Write-Host "========================================"
 
-$Msg = "[$EndTime] ========== 全部项目执行完毕 (成功: $Success, 失败: $Failed) =========="
-$Msg | Out-File -Append $LogFile -Encoding UTF8
+"[$EndTime] ========== DONE (Pass: $Success, Fail: $Failed) ==========" | Out-File -Append $LogFile -Encoding UTF8
