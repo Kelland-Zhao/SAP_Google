@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Continue"
 $Python = "C:\Users\kelland zhao\scoop\apps\python311\current\python.exe"
-$Root = "C:\Users\kelland zhao\Desktop\072 - SAP自动程序源代码"
+$Root = "C:\Users\kelland zhao\Projects\SAP_Google_AutoRun"
 $LogFile = Join-Path $Root "run_all.log"
 
 $Projects = @(
