@@ -332,13 +332,15 @@ def process_critical_equipment_data(ih08_file, ip18_file, year_month):
         equipments_with_plan = len(equipments_ip18)
         print(f"IP18 - 有维护计划的设备总数（去重）: {equipments_with_plan}")
         
-        percentage = round((equipments_with_plan / total_equipments * 100), 1) if total_equipments > 0 else 0.0
+        equipments_without_plan = sorted(equipments_ih08 - equipments_ip18)
+        percentage = round((equipments_with_plan / total_equipments), 4) if total_equipments > 0 else 0.0
         
         return {
             'month': year_month,
             'equipments_with_plan': equipments_with_plan,
             'total_equipments': total_equipments,
-            'percentage': f"{percentage}%"
+            'percentage': percentage,
+            'equipments_without_plan': equipments_without_plan
         }
         
     except Exception as e:
@@ -396,6 +398,41 @@ def upload_to_google_sheets(data, sheet_id, worksheet_name, auth_file):
         return False
     except Exception as e:
         print(f"❌ Google Sheets 上传失败。错误: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def upload_no_plan_equipments(equipments, year_month, sheet_id, auth_file):
+    try:
+        print("\n正在上传无保养计划A类设备清单...")
+        session = requests.Session()
+        session.verify = False
+        credentials = service_account.Credentials.from_service_account_file(
+            auth_file,
+            scopes=['https://www.googleapis.com/auth/spreadsheets']
+        )
+        authed_session = AuthorizedSession(credentials)
+        authed_session.verify = False
+        gc = gspread.Client(auth=credentials, session=authed_session)
+        sh = gc.open_by_key(sheet_id)
+
+        sheet_name = '无保养计划A类设备'
+        try:
+            worksheet = sh.worksheet(sheet_name)
+            worksheet.clear()
+        except gspread.exceptions.WorksheetNotFound:
+            worksheet = sh.add_worksheet(title=sheet_name, rows=str(len(equipments) + 2), cols="2")
+
+        worksheet.update('A1:B1', [['设备编号', '月份']])
+        rows = [[eq, year_month] for eq in equipments]
+        if rows:
+            worksheet.update(f'A2:B{len(rows) + 1}', rows)
+
+        print(f"✅ 已上传 {len(equipments)} 个无保养计划A类设备到 '{sheet_name}'")
+        return True
+    except Exception as e:
+        print(f"❌ 上传无保养计划设备清单失败: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -468,6 +505,17 @@ if __name__ == "__main__":
                 worksheet_name=WORKSHEET_NAME,
                 auth_file=SERVICE_ACCOUNT_FILE
             )
+
+            if data['equipments_without_plan']:
+                print(f"\n无保养计划的A类设备数量: {len(data['equipments_without_plan'])}")
+                upload_no_plan_equipments(
+                    equipments=data['equipments_without_plan'],
+                    year_month=year_month,
+                    sheet_id=GOOGLE_SHEET_ID,
+                    auth_file=SERVICE_ACCOUNT_FILE
+                )
+            else:
+                print("\n✅ 所有A类设备均有保养计划")
         else:
             print("❌ 数据处理失败")
         
