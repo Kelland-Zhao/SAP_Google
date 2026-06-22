@@ -16,34 +16,34 @@ $Projects = @(
 )
 
 $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-"[$Timestamp] ========== 开始执行全部项目 ==========" | Out-File -Append $LogFile -Encoding UTF8
+"[$Timestamp] ========== START ALL PROJECTS ==========" | Out-File -Append $LogFile -Encoding UTF8
 
 foreach ($Project in $Projects) {
     $ProjectPath = Join-Path $Root $Project
     $MainPy = Join-Path $ProjectPath "main.py"
     
     if (-not (Test-Path $MainPy)) {
-        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ❌ 跳过 $Project : main.py 不存在"
+        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] SKIP $Project : main.py not found"
         Write-Host $Msg
         $Msg | Out-File -Append $LogFile -Encoding UTF8
         continue
     }
     
-    $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ▶ 开始执行 $Project"
+    $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] RUN $Project"
     Write-Host $Msg
     $Msg | Out-File -Append $LogFile -Encoding UTF8
     
     $Process = Start-Process -FilePath $Python -ArgumentList "`"$MainPy`"" -WorkingDirectory $ProjectPath -Wait -NoNewWindow -PassThru
     
     if ($Process.ExitCode -eq 0) {
-        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ✅ 完成 $Project"
+        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] DONE $Project"
     } else {
-        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ⚠️ $Project 退出码: $($Process.ExitCode)"
+        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] FAIL $Project (exit code: $($Process.ExitCode))"
     }
     Write-Host $Msg
     $Msg | Out-File -Append $LogFile -Encoding UTF8
 }
 
-$Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ========== 全部项目执行完毕 =========="
+$Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ========== ALL PROJECTS COMPLETED =========="
 Write-Host $Msg
 $Msg | Out-File -Append $LogFile -Encoding UTF8
