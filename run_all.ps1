@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Continue"
+﻿$ErrorActionPreference = "Continue"
 $Python = "C:\Users\kelland zhao\scoop\apps\python311\current\python.exe"
 $Root = "C:\Users\kelland zhao\Projects\SAP_Google_AutoRun"
 $LogFile = Join-Path $Root "run_all.log"
@@ -21,11 +21,11 @@ $FailedList = @()
 
 $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-Host "========================================"
-Write-Host "  SAP Auto Run - $Total projects"
-Write-Host "  Start: $Timestamp"
+Write-Host "  SAP 鑷姩杩愯 - 鍏?$Total 涓」鐩?
+Write-Host "  寮€濮? $Timestamp"
 Write-Host "========================================"
 Write-Host ""
-"[$Timestamp] ========== START ==========" | Out-File -Append $LogFile -Encoding UTF8
+"[$Timestamp] ========== 寮€濮嬫墽琛?==========" | Out-File -Append $LogFile -Encoding UTF8
 
 $Index = 0
 foreach ($Project in $Projects) {
@@ -34,7 +34,7 @@ foreach ($Project in $Projects) {
     $MainPy = Join-Path $ProjectPath "main.py"
     
     if (-not (Test-Path $MainPy)) {
-        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] SKIP $Project : main.py not found"
+        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 璺宠繃 $Project : main.py 涓嶅瓨鍦?
         Write-Host $Msg -ForegroundColor Yellow
         $Msg | Out-File -Append $LogFile -Encoding UTF8
         $Failed++
@@ -42,18 +42,18 @@ foreach ($Project in $Projects) {
         continue
     }
     
-    $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] RUN  $Project ..."
+    $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 鎵ц $Project ..."
     Write-Host $Msg
     $Msg | Out-File -Append $LogFile -Encoding UTF8
     
     $Process = Start-Process -FilePath $Python -ArgumentList "`"$MainPy`"" -WorkingDirectory $ProjectPath -Wait -NoNewWindow -PassThru
     
     if ($Process.ExitCode -eq 0) {
-        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] PASS $Project"
+        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 瀹屾垚 $Project"
         Write-Host $Msg -ForegroundColor Green
         $Success++
     } else {
-        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] FAIL $Project (exit: $($Process.ExitCode))"
+        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 澶辫触 $Project (閫€鍑虹爜: $($Process.ExitCode))"
         Write-Host $Msg -ForegroundColor Red
         $Failed++
         $FailedList += $Project
@@ -64,15 +64,15 @@ foreach ($Project in $Projects) {
 
 $EndTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-Host "========================================"
-Write-Host "  SUMMARY"
-Write-Host "  Total: $Total | Pass: $Success | Fail: $Failed"
+Write-Host "  鎵ц鎬荤粨"
+Write-Host "  鎬昏: $Total | 鎴愬姛: $Success | 澶辫触: $Failed"
 if ($FailedList.Count -gt 0) {
-    Write-Host "  Failed:"
+    Write-Host "  澶辫触椤圭洰:"
     foreach ($f in $FailedList) {
         Write-Host "    - $f" -ForegroundColor Red
     }
 }
-Write-Host "  End: $EndTime"
+Write-Host "  缁撴潫: $EndTime"
 Write-Host "========================================"
 
-"[$EndTime] ========== DONE (Pass: $Success, Fail: $Failed) ==========" | Out-File -Append $LogFile -Encoding UTF8
+"[$EndTime] ========== 鍏ㄩ儴瀹屾垚 (鎴愬姛: $Success, 澶辫触: $Failed) ==========" | Out-File -Append $LogFile -Encoding UTF8
