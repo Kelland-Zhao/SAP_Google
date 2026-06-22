@@ -327,6 +327,15 @@ def upload_no_plan(equipments, sheet_id, auth_file):
         worksheet.update('A1:C1', [['设备编号', '描述', '月份']])
 
     if equipments:
+        all_rows = worksheet.get_all_values()
+        rows_to_delete = []
+        for idx, row in enumerate(all_rows):
+            if len(row) >= 3 and row[2] == equipments[0][2]:
+                rows_to_delete.append(idx + 1)
+        if rows_to_delete:
+            for row_num in sorted(rows_to_delete, reverse=True):
+                worksheet.delete_rows(row_num)
+            print(f"  已清除当月旧数据 {len(rows_to_delete)} 行")
         worksheet.append_rows(equipments, value_input_option='USER_ENTERED')
     print(f"  ✅ 已上传 {len(equipments)} 个无保养计划A类设备")
     return True
