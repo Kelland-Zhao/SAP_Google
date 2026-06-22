@@ -84,13 +84,13 @@ def process_effectiveness_data(excel_file_path, year_month):
     
     total_hours = round(total_hours, 1)
     planned_hours = round(planned_hours, 1)
-    effectiveness = round((planned_hours / total_hours * 100), 1) if total_hours > 0 else 0.0
+    effectiveness = round((planned_hours / total_hours), 4) if total_hours > 0 else 0.0
     
     return {
         'month': year_month,
         'planned_hours': planned_hours,
         'total_hours': total_hours,
-        'effectiveness_pct': f"{effectiveness}%"
+        'effectiveness_pct': effectiveness
     }
 
 
