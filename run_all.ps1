@@ -80,3 +80,5 @@ Write-Host "========================================"
 # 强制关闭残留的 Excel 进程
 taskkill /f /im excel.exe 2>$null
 Write-Host "Excel 进程已清理。"
+Write-Host ""
+Read-Host "按任意键退出..."
