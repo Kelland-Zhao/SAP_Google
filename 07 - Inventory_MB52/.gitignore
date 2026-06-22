@@ -1,0 +1,8 @@
+venv/
+# venv 已移至本地: C:\venvs\Inventory_MB52
+dist/
+build/
+*.spec
+__pycache__/
+*.pyc
+pyreadsp-b5b9c1909de6.json
