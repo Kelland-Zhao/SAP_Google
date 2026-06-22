@@ -69,7 +69,7 @@ def process_maintenance_data(excel_file_path, year_month):
     
     wb.close()
     
-    adherence = round((executed_count / total_planned * 100), 2) if total_planned > 0 else 0
+    adherence = round((executed_count / total_planned), 2) if total_planned > 0 else 0
     
     return {
         'month': year_month,
