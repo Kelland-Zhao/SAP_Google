@@ -42,7 +42,7 @@ OUTPUT_FILENAME = "Temporary_File.xlsx"
 # Google Sheets 配置
 GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1YzMGIQ2RcBlGIadWh5yfxlCmOpCuOBHpgKfEVz8_W98/edit?gid=0#gid=0'
 WORKSHEET_NAME = 'Total_Workorder'
-SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
+SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
 
 def sap_auto_logo():
     subprocess.check_call(['C:\\Program Files (x86)\\SAP\\FrontEnd\\SAPgui\\sapshcut.exe', '-system=CAP', '-client=321',

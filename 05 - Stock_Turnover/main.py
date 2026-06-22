@@ -33,7 +33,7 @@ OUTPUT_DIR = r"O:\My Drive\071 - SAP 数据\StockTurnover"
 OUTPUT_FILENAME = "Temporary_StockTurnover.txt"
 
 # --- Google Sheets 配置 ---
-SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
+SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
 GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1Pa0A6T_qmu5hl2zEPHil-jDDUwc0v_YXGk1PCSgSMB4/edit'
 WORKSHEET_NAME = 'Summary'
 

@@ -24,7 +24,7 @@ OUTPUT_FILENAME = "Temporary_File.XLSX"
 
 GOOGLE_SHEET_ID = '1hVHBdnK_EVSMW54meCpx91rooIZ6Y8vICQzG7txVHGs'
 WORKSHEET_NAME = '安全库存数据'
-SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
+SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
 
 def sap_auto_logo():
     subprocess.check_call(['C:\\Program Files (x86)\\SAP\\FrontEnd\\SAPgui\\sapshcut.exe', '-system=CAP', '-client=321',
