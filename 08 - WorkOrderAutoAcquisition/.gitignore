@@ -38,6 +38,4 @@ Thumbs.db
 
 # Project specific
 *.db
-*.json
-!pyreadsp-*.json
 
