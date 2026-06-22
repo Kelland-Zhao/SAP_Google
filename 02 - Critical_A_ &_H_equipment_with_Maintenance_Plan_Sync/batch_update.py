@@ -215,6 +215,19 @@ def run_ip18(session, year_month, ih08_file):
         print(f"  ❌ 处理 Excel 时发生错误: {e}")
         return None
 
+    for _ in range(3):
+        try:
+            session.findById("wnd[0]/tbar[0]/okcd").text = "/n"
+            session.findById("wnd[0]").sendVKey(0)
+            time.sleep(0.5)
+            break
+        except Exception:
+            try:
+                session.findById("wnd[0]").sendVKey(12)
+                time.sleep(0.5)
+            except Exception:
+                break
+
     return output_file_path
 
 
