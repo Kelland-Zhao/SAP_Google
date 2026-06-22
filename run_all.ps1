@@ -47,3 +47,6 @@ foreach ($Project in $Projects) {
 $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ========== ALL PROJECTS COMPLETED =========="
 Write-Host $Msg
 $Msg | Out-File -Append $LogFile -Encoding UTF8
+
+Write-Host ""
+Write-Host "All done."
