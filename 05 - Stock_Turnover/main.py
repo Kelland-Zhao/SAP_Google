@@ -303,4 +303,4 @@ def main_automation_process():
 if __name__ == "__main__":
     close_SAP()
     main_automation_process()
-    input("\n程序执行完毕，按 Enter 键退出... / Press Enter to exit...")
+    print("\n程序执行完毕 / Program completed.")

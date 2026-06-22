@@ -555,5 +555,5 @@ if __name__ == "__main__":
         # 确保出错时也关闭 SAP
         close_SAP()
     finally:
-        input("\n按 Enter 键退出 / Press Enter to exit...")
+        print("\n执行完毕 / Completed.")
 

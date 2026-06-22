@@ -329,5 +329,4 @@ if __name__ == "__main__":
         traceback.print_exc()
         close_SAP()
     finally:
-        print("\n按任意键退出...")
-        input()
+        print("\n执行完毕。")

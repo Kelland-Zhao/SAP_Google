@@ -375,7 +375,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"错误: 无法连接到 SAP: {e}")
         close_SAP()
-        input()
         sys.exit(1)
 
     for ym in months:
@@ -416,4 +415,3 @@ if __name__ == "__main__":
     print("\n" + "="*50)
     print("✅ 全部完成！")
     print("="*50)
-    input()

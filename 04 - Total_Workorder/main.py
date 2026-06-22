@@ -476,8 +476,7 @@ if __name__ == "__main__":
         print("\n" + "="*50)
         print("✅ 所有操作已完成！")
         print("="*50)
-        print("\n按任意键退出...")
-        input()
+        print("\n执行完毕。")
         
     except Exception as e:
         print(f"❌ 程序执行过程中发生错误: {e}")
@@ -485,6 +484,5 @@ if __name__ == "__main__":
         traceback.print_exc()
         # 确保出错时也关闭 SAP
         close_SAP()
-        print("\n按任意键退出...")
-        input()
+        print("\n执行完毕。")
 
