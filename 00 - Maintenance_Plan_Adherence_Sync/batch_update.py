@@ -53,7 +53,7 @@ def process_maintenance_data(excel_file_path, year_month):
         status = ws.cell(row, system_status_col).value
         if status and str(status).strip():
             total_planned += 1
-            if "CNF" in str(status).upper():
+            if "TECO" in str(status).upper():
                 executed_count += 1
     wb.close()
     adherence = round((executed_count / total_planned), 4) if total_planned > 0 else 0
