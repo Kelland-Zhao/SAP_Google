@@ -288,10 +288,13 @@ def process_critical_equipment_data(ih08_file, ip18_file, year_month):
         ws_ih08 = wb_ih08.active
         
         equipment_col_ih08 = None
+        desc_col_ih08 = None
         for col in range(1, ws_ih08.max_column + 1):
-            if ws_ih08.cell(1, col).value == "设备":
+            header = ws_ih08.cell(1, col).value
+            if header == "设备":
                 equipment_col_ih08 = col
-                break
+            elif header and "描述" in str(header):
+                desc_col_ih08 = col
         
         if not equipment_col_ih08:
             print("❌ IH08 文件中未找到'设备'列")
@@ -299,10 +302,15 @@ def process_critical_equipment_data(ih08_file, ip18_file, year_month):
             return None
         
         equipments_ih08 = set()
+        equipment_desc = {}
         for row in range(2, ws_ih08.max_row + 1):
             equipment = ws_ih08.cell(row, equipment_col_ih08).value
             if equipment:
-                equipments_ih08.add(str(equipment).strip())
+                eq_str = str(equipment).strip()
+                equipments_ih08.add(eq_str)
+                if desc_col_ih08:
+                    desc = ws_ih08.cell(row, desc_col_ih08).value
+                    equipment_desc[eq_str] = str(desc).strip() if desc else ""
         
         wb_ih08.close()
         total_equipments = len(equipments_ih08)
@@ -333,6 +341,10 @@ def process_critical_equipment_data(ih08_file, ip18_file, year_month):
         print(f"IP18 - 有维护计划的设备总数（去重）: {equipments_with_plan}")
         
         equipments_without_plan = sorted(equipments_ih08 - equipments_ip18)
+        equipments_without_plan_data = [
+            [eq, equipment_desc.get(eq, ""), year_month]
+            for eq in equipments_without_plan
+        ]
         percentage = round((equipments_with_plan / total_equipments), 4) if total_equipments > 0 else 0.0
         
         return {
@@ -340,7 +352,7 @@ def process_critical_equipment_data(ih08_file, ip18_file, year_month):
             'equipments_with_plan': equipments_with_plan,
             'total_equipments': total_equipments,
             'percentage': percentage,
-            'equipments_without_plan': equipments_without_plan
+            'equipments_without_plan': equipments_without_plan_data
         }
         
     except Exception as e:
@@ -403,7 +415,7 @@ def upload_to_google_sheets(data, sheet_id, worksheet_name, auth_file):
         return False
 
 
-def upload_no_plan_equipments(equipments, year_month, sheet_id, auth_file):
+def upload_no_plan_equipments(equipments, sheet_id, auth_file):
     try:
         print("\n正在上传无保养计划A类设备清单...")
         session = requests.Session()
@@ -422,12 +434,11 @@ def upload_no_plan_equipments(equipments, year_month, sheet_id, auth_file):
             worksheet = sh.worksheet(sheet_name)
             worksheet.clear()
         except gspread.exceptions.WorksheetNotFound:
-            worksheet = sh.add_worksheet(title=sheet_name, rows=str(len(equipments) + 2), cols="2")
+            worksheet = sh.add_worksheet(title=sheet_name, rows=str(len(equipments) + 2), cols="3")
 
-        worksheet.update('A1:B1', [['设备编号', '月份']])
-        rows = [[eq, year_month] for eq in equipments]
-        if rows:
-            worksheet.update(f'A2:B{len(rows) + 1}', rows)
+        worksheet.update('A1:C1', [['设备编号', '描述', '月份']])
+        if equipments:
+            worksheet.update(f'A2:C{len(equipments) + 1}', equipments)
 
         print(f"✅ 已上传 {len(equipments)} 个无保养计划A类设备到 '{sheet_name}'")
         return True
@@ -510,7 +521,6 @@ if __name__ == "__main__":
                 print(f"\n无保养计划的A类设备数量: {len(data['equipments_without_plan'])}")
                 upload_no_plan_equipments(
                     equipments=data['equipments_without_plan'],
-                    year_month=year_month,
                     sheet_id=GOOGLE_SHEET_ID,
                     auth_file=SERVICE_ACCOUNT_FILE
                 )
