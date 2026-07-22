@@ -77,6 +77,23 @@ def run_ih08(session, year_month, first_day_str, last_day_str):
     session.findById("wnd[1]/tbar[0]/btn[8]").press()
     time.sleep(1)
 
+    # GEWRK 工作中心多选
+    session.findById("wnd[0]/usr/ctxtGEWRK-LOW").setFocus()
+    session.findById("wnd[0]/usr/ctxtGEWRK-LOW").caretPosition = 0
+    session.findById("wnd[0]/usr/btn%_GEWRK_%_APP_%-VALU_PUSH").press()
+
+    session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,0]").text = "PMMSXFAC"
+    session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").text = "PMMSXTF1"
+    session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,2]").text = "PMMSXWHS"
+    session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,3]").text = "PMMSXPK1"
+    session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,4]").text = "PMMSXTF2"
+    session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,5]").text = "PMMSXIN2"
+    session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,6]").text = "PMMSXIN1"
+    session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,6]").setFocus()
+    session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,6]").caretPosition = 8
+    session.findById("wnd[1]/tbar[0]/btn[8]").press()
+    time.sleep(1)
+
     session.findById("wnd[0]/usr/ctxtSWERK-LOW").text = "CN15"
     session.findById("wnd[0]/usr/ctxtABCKZ-LOW").text = "A"
     session.findById("wnd[0]/usr/ctxtVARIANT").text = "/GUAN_EQUIP"
