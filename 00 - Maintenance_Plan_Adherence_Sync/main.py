@@ -216,10 +216,6 @@ def get_maintenance_plan_iw39():
         session.findById("wnd[0]/usr/ctxtDATUB").caretPosition = 10
         session.findById("wnd[0]").sendVKey(2)
         
-        session.findById("wnd[1]/tbar[0]/btn[12]").press()
-        
-        session.findById("wnd[0]/usr/ctxtDATUV").text = first_day_str
-        session.findById("wnd[0]/usr/ctxtDATUB").text = last_day_str
         session.findById("wnd[0]/usr/ctxtSWERK-LOW").text = "CN15"
         session.findById("wnd[0]/usr/ctxtSWERK-LOW").setFocus()
         session.findById("wnd[0]/usr/ctxtSWERK-LOW").caretPosition = 4
