@@ -149,24 +149,24 @@ def run_iw39_for_month(session, year_month):
 
     session.findById("wnd[0]/usr/ctxtSTRNO-LOW").text = "CN15*"
     session.findById("wnd[0]/usr/ctxtIWERK-LOW").text = "CN15"
-    session.findById("wnd[0]/usr/ctxtGLTRS-LOW").setFocus()
-    session.findById("wnd[0]/usr/ctxtGLTRS-LOW").caretPosition = 0
+    session.findById("wnd[0]/usr/ctxtDATUV").setFocus()
+    session.findById("wnd[0]/usr/ctxtDATUV").caretPosition = 0
     session.findById("wnd[0]").sendVKey(4)
 
     session.findById("wnd[1]/usr/cntlCONTAINER/shellcont/shell").focusDate = first_day.strftime("%Y%m%d")
     session.findById("wnd[1]/usr/cntlCONTAINER/shellcont/shell").firstVisibleDate = first_day.strftime("%Y%m%d")
     session.findById("wnd[1]/tbar[0]/btn[0]").press()
 
-    session.findById("wnd[0]/usr/ctxtGLTRS-LOW").text = first_day_str
-    session.findById("wnd[0]/usr/ctxtGLTRS-HIGH").text = last_day_str
-    session.findById("wnd[0]/usr/ctxtGLTRS-HIGH").setFocus()
-    session.findById("wnd[0]/usr/ctxtGLTRS-HIGH").caretPosition = 10
+    session.findById("wnd[0]/usr/ctxtDATUV").text = first_day_str
+    session.findById("wnd[0]/usr/ctxtDATUB").text = last_day_str
+    session.findById("wnd[0]/usr/ctxtDATUB").setFocus()
+    session.findById("wnd[0]/usr/ctxtDATUB").caretPosition = 10
     session.findById("wnd[0]").sendVKey(2)
 
     session.findById("wnd[1]/tbar[0]/btn[12]").press()
 
-    session.findById("wnd[0]/usr/ctxtGLTRS-LOW").text = first_day_str
-    session.findById("wnd[0]/usr/ctxtGLTRS-HIGH").text = last_day_str
+    session.findById("wnd[0]/usr/ctxtDATUV").text = first_day_str
+    session.findById("wnd[0]/usr/ctxtDATUB").text = last_day_str
     session.findById("wnd[0]/usr/ctxtSWERK-LOW").text = "CN15"
     session.findById("wnd[0]/usr/ctxtSWERK-LOW").setFocus()
     session.findById("wnd[0]/usr/ctxtSWERK-LOW").caretPosition = 4
