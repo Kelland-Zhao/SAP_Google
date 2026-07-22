@@ -53,7 +53,7 @@ def process_maintenance_data(excel_file_path, year_month):
         status = ws.cell(row, system_status_col).value
         if status and str(status).strip():
             total_planned += 1
-            if "TECO" in str(status).upper():
+            if "CNF" in str(status).upper():
                 executed_count += 1
     wb.close()
     adherence = round((executed_count / total_planned), 4) if total_planned > 0 else 0
@@ -230,7 +230,7 @@ def run_iw39_for_month(session, year_month):
 
 
 if __name__ == "__main__":
-    months = ["202601", "202602", "202603", "202604", "202605"]
+    months = ["202601", "202602", "202603", "202604", "202605", "202606", "202607"]
 
     print("正在清理可能存在的 SAP 进程...")
     close_SAP()
