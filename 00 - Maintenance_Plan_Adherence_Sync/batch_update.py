@@ -174,16 +174,23 @@ def run_iw39_for_month(session, year_month):
     session.findById("wnd[0]/tbar[1]/btn[8]").press()
     time.sleep(2)
 
-    session.findById("wnd[0]/mbar/menu[0]/menu[6]").select()
+    # 导出数据（使用工具栏按钮）
+    session.findById("wnd[0]/tbar[1]/btn[16]").press()
     time.sleep(1)
 
-    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+    try:
+        session.findById("wnd[1]/tbar[0]/btn[0]").press()
+    except Exception:
+        pass
 
     session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[0,0]").select()
     session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[0,0]").setFocus()
     session.findById("wnd[1]/tbar[0]/btn[0]").press()
 
-    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+    try:
+        session.findById("wnd[1]/tbar[0]/btn[0]").press()
+    except Exception:
+        pass
 
     print("  等待 Excel 打开...")
     time.sleep(5)
