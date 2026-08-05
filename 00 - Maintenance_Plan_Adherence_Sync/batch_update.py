@@ -43,10 +43,10 @@ def close_SAP():
 def process_maintenance_data(excel_file_path, year_month):
     wb = openpyxl.load_workbook(excel_file_path)
     ws = wb.active
-    system_status_col = 11
+    system_status_col = 8
     header_value = ws.cell(1, system_status_col).value
-    if header_value != "系统字段":
-        print(f"  警告：K 列的列名是 '{header_value}'，预期是 '系统字段'")
+    if header_value != "系统状态":
+        print(f"  警告：H 列的列名是 '{header_value}'，预期是 '系统状态'")
     total_planned = 0
     executed_count = 0
     for row in range(2, ws.max_row + 1):
