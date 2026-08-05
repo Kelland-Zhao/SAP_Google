@@ -104,7 +104,9 @@ def get_work_order():
     
     # 获取日期范围
     start_date, end_date = get_date_range()
-    
+
+    print(f"\n日期范围: {start_date} - {end_date}")
+
     try:
         # 调整工作窗格大小
         session.findById("wnd[0]").resizeWorkingPane(232, 29, False)

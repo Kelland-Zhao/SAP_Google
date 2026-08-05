@@ -148,7 +148,9 @@ def get_maintenance_plan_iw39():
     
     first_day_str = first_day.strftime("%m/%d/%Y")
     last_day_str = last_day.strftime("%m/%d/%Y")
-    
+
+    print(f"\n日期范围: {first_day_str} - {last_day_str}")
+
     year_month = today.strftime("%Y%m")
     output_filename = f"{year_month}_Maintenance_Plan_Adherence.xlsx"
     output_file_path = os.path.join(OUTPUT_DIR, output_filename)
