@@ -45,7 +45,7 @@ WORKSHEET_NAME = 'Total_Workorder'
 SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
 
 def sap_auto_logo():
-    subprocess.check_call(['C:\\Program Files (x86)\\SAP\\FrontEnd\\SAPgui\\sapshcut.exe', '-system=CAP', '-client=321',
+    subprocess.check_call(['C:\\Program Files (x86)\\SAP\\FrontEnd\\SAPgui\\sapshcut.exe', '-system=LAP', '-client=321',
                            '-user=USERNAME', '-pw=PASSWORD', '-language=ZH'])
     time.sleep(15)
     print("sap open successfully")

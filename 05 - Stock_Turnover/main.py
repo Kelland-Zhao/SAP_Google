@@ -22,7 +22,7 @@ def get_resource_path(relative_path):
 
 # --- 核心配置 ---
 # 注意：请在使用前替换 USERNAME 和 PASSWORD
-SAP_SYSTEM = 'CAP'
+SAP_SYSTEM = 'LAP'
 SAP_CLIENT = '321'
 SAP_USER = 'USERNAME'
 SAP_PASSWORD = 'PASSWORD'
