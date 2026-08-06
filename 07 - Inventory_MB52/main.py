@@ -108,9 +108,9 @@ def get_inventory_mb52():
         session.findById("wnd[0]/tbar[1]/btn[8]").press()
         time.sleep(2)
         
-        session.findById("wnd[0]/mbar/menu[0]/menu[1]/menu[1]").select()
+        session.findById("wnd[0]/tbar[1]/btn[16]").press()
         time.sleep(1)
-        
+
         for wait in range(10):
             try:
                 session.findById("wnd[1]/usr/ctxtDY_PATH")
