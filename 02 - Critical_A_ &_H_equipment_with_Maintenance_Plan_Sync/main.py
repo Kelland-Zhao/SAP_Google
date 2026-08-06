@@ -100,9 +100,9 @@ def get_a_equipments_ih08(session, year_month, first_day_str, last_day_str):
 
         session.findById("wnd[0]/usr/ctxtSWERK-LOW").text = "CN15"
         session.findById("wnd[0]/usr/ctxtABCKZ-LOW").text = "A"
-        session.findById("wnd[0]/usr/ctxtVARIANT").text = "/GUAN_EQUIP"
+        session.findById("wnd[0]/usr/ctxtVARIANT").text = "/KEL"
         session.findById("wnd[0]/usr/ctxtVARIANT").setFocus()
-        session.findById("wnd[0]/usr/ctxtVARIANT").caretPosition = 11
+        session.findById("wnd[0]/usr/ctxtVARIANT").caretPosition = 4
         
         session.findById("wnd[0]/tbar[1]/btn[8]").press()
         time.sleep(3)
