@@ -6,8 +6,8 @@ import time
 import win32com.client
 import sys
 import os
+import io
 import pandas as pd
-import openpyxl
 import gspread
 import requests
 import urllib3
@@ -20,10 +20,13 @@ def get_resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 OUTPUT_DIR = r"O:\My Drive\071 - SAP 数据\Safety_Stock"
-OUTPUT_FILENAME = "Temporary_File.XLSX"
+OUTPUT_FILENAME = "Temporary_File.txt"
 
 GOOGLE_SHEET_ID = '1hVHBdnK_EVSMW54meCpx91rooIZ6Y8vICQzG7txVHGs'
 WORKSHEET_NAME = '安全库存数据'
+
+# 仅上传以下列，键为 SAP 字段名，值为 Google Sheets 中文表头
+COLUMN_MAPPING = {'MATNR': '物料', 'EISBE': '安全库存'}
 SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
 
 def sap_auto_logo():
@@ -90,8 +93,18 @@ def get_safety_stock_zse16():
         session.findById("wnd[0]/tbar[1]/btn[8]").press()
         time.sleep(2)
         
-        session.findById("wnd[0]/tbar[1]/btn[43]").press()
+        session.findById("wnd[0]/mbar/menu[1]/menu[5]").select()
         time.sleep(2)
+        
+        radio_tab_delimited = "wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[1,0]"
+        try:
+            session.findById(radio_tab_delimited).select()
+            session.findById(radio_tab_delimited).setFocus()
+            session.findById("wnd[1]/tbar[0]/btn[0]").press()
+            print("已选择导出格式: 制表符分隔文本")
+            time.sleep(2)
+        except Exception:
+            print("未出现格式选择窗口，继续执行...")
         
         save_wnd = None
         try:
@@ -135,20 +148,58 @@ def get_safety_stock_zse16():
         traceback.print_exc()
 
 
+def read_sap_text_export(file_path):
+    with open(file_path, 'rb') as f:
+        raw = f.read()
+
+    if raw[:2] in (b'\xff\xfe', b'\xfe\xff'):
+        encoding = 'utf-16'
+    else:
+        try:
+            raw.decode('utf-8')
+            encoding = 'utf-8-sig'
+        except UnicodeDecodeError:
+            encoding = 'gbk'
+    text = raw.decode(encoding, errors='replace')
+    print(f"使用编码 {encoding} 解析")
+
+    # SAP 导出前几行为「表：」「显示的字段：」等元数据，表头行以制表符开头
+    lines = text.splitlines()
+    header_idx = next((i for i, line in enumerate(lines) if line.startswith('\t')), 0)
+
+    df = pd.read_csv(io.StringIO(text), sep='\t', dtype=str, skiprows=header_idx,
+                     skip_blank_lines=True, engine='python')
+
+    df.columns = [str(c).strip() for c in df.columns]
+    df = df.loc[:, ~df.columns.str.startswith('Unnamed')]
+    df = df.apply(lambda col: col.str.strip() if col.dtype == object else col)
+    # SAP 文本导出的负数为尾随负号（如 123.45-），转换为标准写法
+    df = df.replace(r'^(-?[\d.,]+)-$', r'-\1', regex=True)
+    df = df.fillna('')
+    return df
+
+
 def upload_to_google_sheets(excel_file_path, sheet_id, worksheet_name, auth_file):
     try:
-        print(f"正在读取 Excel 文件: {excel_file_path}")
+        print(f"正在读取导出文件: {excel_file_path}")
         if not os.path.exists(excel_file_path):
             print(f"❌ 错误: 找不到文件 {excel_file_path}")
             return False
         
-        df = pd.read_excel(excel_file_path, engine='openpyxl')
+        df = read_sap_text_export(excel_file_path)
         
         if df.empty:
-            print("⚠️ 警告: Excel 文件中没有数据")
+            print("⚠️ 警告: 导出文件中没有数据")
             return False
         
         print(f"读取到 {len(df)} 行数据")
+        
+        missing = [col for col in COLUMN_MAPPING if col not in df.columns]
+        if missing:
+            print(f"❌ 错误: 导出文件缺少所需列 {missing}，实际列: {list(df.columns)}")
+            return False
+        
+        df = df[list(COLUMN_MAPPING)].rename(columns=COLUMN_MAPPING)
         
         print("正在连接 Google Sheets...")
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -221,7 +272,7 @@ if __name__ == "__main__":
         close_SAP()
         
         print("\n" + "="*50)
-        print("开始将 Excel 数据上传到 Google Sheets...")
+        print("开始将导出数据上传到 Google Sheets...")
         print("="*50)
         
         excel_file_path = os.path.join(OUTPUT_DIR, OUTPUT_FILENAME)
