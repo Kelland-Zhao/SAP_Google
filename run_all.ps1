@@ -9,7 +9,6 @@ $Projects = @(
     "02 - Critical_A_ &_H_equipment_with_Maintenance_Plan_Sync",
     "03 - Safety_Stock_ZSE16",
     "04 - Total_Workorder",
-    "05 - Stock_Turnover",
     "06 - IM_Equipment_Number",
     "07 - Inventory_MB52"
 )
