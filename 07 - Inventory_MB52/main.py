@@ -108,8 +108,14 @@ def get_inventory_mb52():
         session.findById("wnd[0]/tbar[1]/btn[8]").press()
         time.sleep(2)
         
-        session.findById("wnd[0]/tbar[1]/btn[16]").press()
+        session.findById("wnd[0]/tbar[1]/btn[43]").press()
         time.sleep(1)
+
+        try:
+            session.findById("wnd[1]/tbar[0]/btn[20]").press()
+            time.sleep(1)
+        except Exception:
+            pass
 
         for wait in range(10):
             try:

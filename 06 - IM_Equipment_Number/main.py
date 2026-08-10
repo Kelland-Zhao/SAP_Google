@@ -38,12 +38,25 @@ def get_resource_path(relative_path):
 # --- 核心配置 ---
 # 文件路径配置
 OUTPUT_DIR = r"O:\My Drive\071 - SAP 数据\IM_Equipment_Number"
-OUTPUT_FILENAME = "Temporary_File.xlsx"
+OUTPUT_FILENAME_PREFIX = "IM_Equipment_Number"
+
+
+def get_output_filename():
+    """按当月 YYYYMM 生成文件名，当月文件覆盖，历史文件保留"""
+    return f"{OUTPUT_FILENAME_PREFIX}_{datetime.date.today().strftime('%Y%m')}.xlsx"
 
 # Google Sheets 配置
 GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/12MXO53wJC8s_J-IE2uGY5jx35rnUE7rxW1xvwVU-FxM/edit?gid=151672918#gid=151672918'
 WORKSHEET_NAME = 'Equipment_Number_EAM'
 SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
+
+# 由 D 列前 8 个字符生成的新增列，写入位置为导出文件现有末列+1
+TAG_COLUMN_HEADER = '机台号 - Tag'
+
+# IH08 筛选参数
+WORK_CENTERS = ['PMMSXFAC', 'PMMSXTF1', 'PMMSXWHS', 'PMMSXPK1', 'PMMSXTF2', 'PMMSXIN2', 'PMMSXIN1']
+MULTI_SELECT_ROW = ('wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010'
+                    '/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I')
 
 def sap_auto_logo():
     subprocess.check_call(['C:\\Program Files (x86)\\SAP\\FrontEnd\\SAPgui\\sapshcut.exe', '-system=LAP', '-client=321',
@@ -107,23 +120,49 @@ def get_equipment_number():
         session.findById("wnd[0]/tbar[0]/okcd").text = "IH08"
         session.findById("wnd[0]").sendVKey(0)
         
-        # 设置工作中心筛选
+        # 设置日期区间
+        start_date_str, end_date_str = get_date_range()
+        print(f"日期范围: {start_date_str} - {end_date_str}")
+        session.findById("wnd[0]/usr/ctxtDATUV").text = start_date_str
+        session.findById("wnd[0]/usr/ctxtDATUB").text = end_date_str
+        session.findById("wnd[0]/usr/ctxtDATUB").setFocus()
+        session.findById("wnd[0]/usr/ctxtDATUB").caretPosition = 10
+        
+        # 系统状态多选：标记
+        session.findById("wnd[0]/usr/btn%_STAE1_%_APP_%-VALU_PUSH").press()
+        session.findById(f"{MULTI_SELECT_ROW}[1,0]").text = "标记"
+        session.findById(f"{MULTI_SELECT_ROW}[1,0]").setFocus()
+        session.findById(f"{MULTI_SELECT_ROW}[1,0]").caretPosition = 2
+        session.findById("wnd[1]/tbar[0]/btn[8]").press()
+        time.sleep(1)
+        
+        # 主工作中心多选
+        session.findById("wnd[0]/usr/ctxtGEWRK-LOW").setFocus()
+        session.findById("wnd[0]/usr/ctxtGEWRK-LOW").caretPosition = 0
+        session.findById("wnd[0]/usr/btn%_GEWRK_%_APP_%-VALU_PUSH").press()
+        
+        for index, work_center in enumerate(WORK_CENTERS):
+            session.findById(f"{MULTI_SELECT_ROW}[1,{index}]").text = work_center
+        last_index = len(WORK_CENTERS) - 1
+        session.findById(f"{MULTI_SELECT_ROW}[1,{last_index}]").setFocus()
+        session.findById(f"{MULTI_SELECT_ROW}[1,{last_index}]").caretPosition = len(WORK_CENTERS[last_index])
+        print(f"主工作中心筛选: {', '.join(WORK_CENTERS)}")
+        session.findById("wnd[1]/tbar[0]/btn[8]").press()
+        time.sleep(1)
+        
+        # 设置工厂
         session.findById("wnd[0]/usr/ctxtSWERK-LOW").text = "CN15"
         session.findById("wnd[0]/usr/ctxtSWERK-LOW").setFocus()
         session.findById("wnd[0]/usr/ctxtSWERK-LOW").caretPosition = 4
-        session.findById("wnd[0]/usr/btn%_STORT_%_APP_%-VALU_PUSH").press()
         
-        # 输入工作中心类型：TB1M, TB2M, TB3M
-        session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,0]").text = "TB1M"
-        session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").text = "TB2M"
-        session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,2]").text = "TB3M"
-        session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,2]").setFocus()
-        session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,2]").caretPosition = 4
-        session.findById("wnd[1]/tbar[0]/btn[8]").press()
+        # 设置输出布局
+        session.findById("wnd[0]/usr/ctxtVARIANT").text = "/KEL"
+        session.findById("wnd[0]/usr/ctxtVARIANT").setFocus()
+        session.findById("wnd[0]/usr/ctxtVARIANT").caretPosition = 4
         
         # 执行查询
         session.findById("wnd[0]/tbar[1]/btn[8]").press()
-        time.sleep(2)
+        time.sleep(3)
         
         # 导出数据
         session.findById("wnd[0]/tbar[1]/btn[16]").press()
@@ -147,9 +186,6 @@ def get_equipment_number():
         except Exception:
             pass
         
-        # 设置当前单元格
-        session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").setCurrentCell(20, "EQKTX")
-        
         print("✅ 设备编号数据查询完成。")
         
         # 等待 Excel 打开
@@ -166,7 +202,7 @@ def get_equipment_number():
                 return
         
         # 构建完整文件路径
-        output_path = os.path.join(OUTPUT_DIR, OUTPUT_FILENAME)
+        output_path = os.path.join(OUTPUT_DIR, get_output_filename())
         
         # 如果文件已存在，先删除
         if os.path.exists(output_path):
@@ -255,7 +291,7 @@ def process_excel_d_to_m_column():
         Workbook = ExcelApp.ActiveWorkbook
         Worksheet = Workbook.ActiveSheet
         
-        print("正在处理 Excel 数据：提取 D 列前8个字符到 M 列...")
+        print("正在处理 Excel 数据：提取 B 列前8个字符到末列+1...")
         
         # 检查工作表是否被保护，如果被保护则先解除保护
         was_protected = False
@@ -272,11 +308,20 @@ def process_excel_d_to_m_column():
         ExcelApp.EnableEvents = False    # 禁用事件以提高性能
         
         try:
-            # 获取工作表的最后一行
-            last_row = Worksheet.UsedRange.Rows.Count
+            # 获取工作表的最后一行，并定位到现有末列的下一列
+            used_range = Worksheet.UsedRange
+            last_row = used_range.Rows.Count
+            target_col = used_range.Columns.Count + 1
             
-            # 批量读取 D 列的值
-            d_range = Worksheet.Range(f"D1:D{last_row}")
+            Worksheet.Cells(1, target_col).Value = TAG_COLUMN_HEADER
+            print(f"Tag 列写入位置: 第 {target_col} 列，表头 {TAG_COLUMN_HEADER}")
+            
+            if last_row < 2:
+                print("⚠️ 警告: 工作表只有表头行，无数据需要处理")
+                return True
+            
+            # 批量读取 B 列「描述」数据（从第 2 行开始，跳过表头）
+            d_range = Worksheet.Range(f"B2:B{last_row}")
             d_values = d_range.Value
             
             # Range.Value 返回的可能是元组或列表，需要统一处理
@@ -290,7 +335,7 @@ def process_excel_d_to_m_column():
             # 准备 M 列的值列表
             m_values = []
             for d_row in d_values:
-                # 获取该行的 D 列值（可能是元组或列表的第一个元素）
+                # 获取该行的 B 列值（可能是元组或列表的第一个元素）
                 d_value = d_row[0] if isinstance(d_row, (list, tuple)) else d_row
                 
                 # 提取前8个字符
@@ -301,9 +346,10 @@ def process_excel_d_to_m_column():
                     m_value = ''
                 m_values.append([m_value])
             
-            # 批量写入 M 列（使用 Range 批量写入，更高效且更可靠）
-            m_range = Worksheet.Range(f"M1:M{last_row}")
-            m_range.Value = m_values
+            # 批量写入目标列（使用 Range 批量写入，更高效且更可靠）
+            target_range = Worksheet.Range(Worksheet.Cells(2, target_col),
+                                          Worksheet.Cells(last_row, target_col))
+            target_range.Value = m_values
             
         finally:
             # 恢复 Excel 应用程序设置
@@ -386,16 +432,16 @@ def extract_first_8_chars_to_m_column(excel_file_path):
         return False
 
 
-def write_to_google_sheet(excel_file_path, sheet_url, worksheet_name, auth_file, start_row=2):
+def write_to_google_sheet(excel_file_path, sheet_url, worksheet_name, auth_file, start_row=1):
     """
-    读取 Excel 文件（从第二行开始）并将数据写入 Google Sheets（从第二行开始）
+    读取 Excel 文件（含表头），清空整表后写入 Google Sheets
     
     Args:
         excel_file_path (str): Excel 文件的完整路径
         sheet_url (str): Google Sheets 的 URL
         worksheet_name (str): 目标工作表的名称
         auth_file (str): Google 服务账户 JSON 文件的路径
-        start_row (int): 开始写入的行号（默认从第2行开始）
+        start_row (int): 开始写入的行号（默认从第1行开始）
     """
     try:
         # 1. 读取 Excel 文件
@@ -404,11 +450,10 @@ def write_to_google_sheet(excel_file_path, sheet_url, worksheet_name, auth_file,
             print(f"❌ 错误: 找不到文件 {excel_file_path}")
             return False
         
-        # 读取 Excel 文件，第一行作为列名
-        df = pd.read_excel(excel_file_path, engine='openpyxl')
+        # 不把首行当列名，保留原始表头（避开 pandas 对重复列名的自动重命名）
+        df = pd.read_excel(excel_file_path, engine='openpyxl', header=None)
         
-        # 从第二行开始获取数据（索引从0开始，所以是 iloc[1:]）
-        df_data = df.iloc[0:].copy()
+        df_data = df.copy()
         
         # 清理数据：替换 NaN、Infinity 等不符合 JSON 规范的值
         # 将 NaN 替换为空字符串
@@ -444,10 +489,10 @@ def write_to_google_sheet(excel_file_path, sheet_url, worksheet_name, auth_file,
         data_to_write = [[clean_value(cell) for cell in row] for row in data_to_write]
         
         if not data_to_write:
-            print("⚠️ 警告: Excel 文件中没有数据可写入（从第二行开始）")
+            print("⚠️ 警告: Excel 文件中没有数据可写入")
             return False
         
-        print(f"读取到 {len(data_to_write)} 行数据（从第二行开始）")
+        print(f"读取到 {len(data_to_write)} 行数据（含表头行）")
         
         # 2. 连接 Google Sheets
         print("正在连接 Google Sheets...")
@@ -481,7 +526,10 @@ def write_to_google_sheet(excel_file_path, sheet_url, worksheet_name, auth_file,
         end_col_letter = col_num_to_letter(num_cols)
         range_name = f"A{start_row}:{end_col_letter}{end_row}"
         
-        # 5. 写入数据
+        # 5. 清空整表后写入数据
+        print("正在清空工作表...")
+        worksheet.clear()
+        
         print(f"正在将数据写入 Google Sheets: {worksheet_name}，范围: {range_name}")
         worksheet.update(range_name=range_name, values=data_to_write)
         
@@ -528,7 +576,7 @@ if __name__ == "__main__":
         print("开始将 Excel 数据上传到 Google Sheets...")
         print("="*50)
         
-        excel_file_path = os.path.join(OUTPUT_DIR, OUTPUT_FILENAME)
+        excel_file_path = os.path.join(OUTPUT_DIR, get_output_filename())
         time.sleep(2)  # 等待文件完全保存
         
         write_to_google_sheet(
@@ -536,7 +584,7 @@ if __name__ == "__main__":
             sheet_url=GOOGLE_SHEET_URL,
             worksheet_name=WORKSHEET_NAME,
             auth_file=SERVICE_ACCOUNT_FILE,
-            start_row=2
+            start_row=1
         )
         
         # 6. 操作完成后关闭 SAP
