@@ -222,15 +222,15 @@ def get_maintenance_effectiveness_iw47():
         session.findById("wnd[0]/usr/ctxtERSDA_C-LOW").text = first_day_str
         session.findById("wnd[0]/usr/ctxtERSDA_C-HIGH").text = last_day_str
         session.findById("wnd[0]/usr/ctxtWERKS_C-LOW").text = "CN15"
-        session.findById("wnd[0]/usr/ctxtVARIANT").text = "/BADDI 15"
+        session.findById("wnd[0]/usr/ctxtVARIANT").text = "/KEL"
         session.findById("wnd[0]/usr/ctxtVARIANT").setFocus()
-        session.findById("wnd[0]/usr/ctxtVARIANT").caretPosition = 9
+        session.findById("wnd[0]/usr/ctxtVARIANT").caretPosition = 4
         
         session.findById("wnd[0]/tbar[1]/btn[8]").press()
-        time.sleep(3)
+        time.sleep(5)
         
-        # 导出数据（使用工具栏按钮）
-        session.findById("wnd[0]/tbar[1]/btn[16]").press()
+        # 导出数据（列表菜单 > 导出 > 电子表格）
+        session.findById("wnd[0]/mbar/menu[0]/menu[4]").select()
         time.sleep(1)
 
         try:
