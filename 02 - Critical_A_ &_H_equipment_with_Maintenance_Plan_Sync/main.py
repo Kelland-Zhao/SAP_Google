@@ -235,6 +235,10 @@ def get_equipments_with_plan_ip18(session, year_month, ih08_file):
         session.findById("wnd[0]/usr/ctxtSWERK-LOW").setFocus()
         session.findById("wnd[0]/usr/ctxtSWERK-LOW").caretPosition = 4
         
+        session.findById("wnd[0]/usr/ctxtVARIANT").text = "/KEL"
+        session.findById("wnd[0]/usr/ctxtVARIANT").setFocus()
+        session.findById("wnd[0]/usr/ctxtVARIANT").caretPosition = 4
+        
         session.findById("wnd[0]/tbar[1]/btn[8]").press()
         time.sleep(3)
         
