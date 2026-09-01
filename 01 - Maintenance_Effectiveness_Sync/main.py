@@ -154,6 +154,33 @@ def upload_to_google_sheets(data, sheet_id, worksheet_name, auth_file):
         return False
 
 
+def is_empty_result(session):
+    empty_keywords = ["没有选择对象", "未选择对象", "No objects selected", "没有满足选择条件"]
+    
+    try:
+        sbar_text = session.findById("wnd[0]/sbar").text or ""
+    except Exception:
+        sbar_text = ""
+    
+    if any(kw in sbar_text for kw in empty_keywords):
+        return True
+    
+    try:
+        popup_text = session.findById("wnd[1]").text or ""
+        popup_msg = session.findById("wnd[1]/usr").text or ""
+    except Exception:
+        return False
+    
+    if any(kw in popup_text or kw in popup_msg for kw in empty_keywords):
+        try:
+            session.findById("wnd[1]/tbar[0]/btn[0]").press()
+        except Exception:
+            pass
+        return True
+    
+    return False
+
+
 def get_maintenance_effectiveness_iw47():
     today = datetime.date.today()
     first_day = today.replace(day=1)
@@ -211,15 +238,6 @@ def get_maintenance_effectiveness_iw47():
         time.sleep(1)
         
         session.findById("wnd[0]/usr/ctxtERSDA_C-LOW").text = first_day_str
-        session.findById("wnd[0]/usr/ctxtERSDA_C-HIGH").setFocus()
-        session.findById("wnd[0]/usr/ctxtERSDA_C-HIGH").caretPosition = 10
-        session.findById("wnd[0]").sendVKey(2)
-        time.sleep(1)
-        
-        session.findById("wnd[1]/tbar[0]/btn[12]").press()
-        time.sleep(1)
-        
-        session.findById("wnd[0]/usr/ctxtERSDA_C-LOW").text = first_day_str
         session.findById("wnd[0]/usr/ctxtERSDA_C-HIGH").text = last_day_str
         session.findById("wnd[0]/usr/ctxtWERKS_C-LOW").text = "CN15"
         session.findById("wnd[0]/usr/ctxtVARIANT").text = "/KEL"
@@ -228,6 +246,10 @@ def get_maintenance_effectiveness_iw47():
         
         session.findById("wnd[0]/tbar[1]/btn[8]").press()
         time.sleep(5)
+        
+        if is_empty_result(session):
+            print(f"⚠️ IW47 在 {first_day_str} - {last_day_str} 区间内没有符合条件的确认数据，本次跳过导出与上传。")
+            return
         
         # 导出数据（列表菜单 > 导出 > 电子表格）
         session.findById("wnd[0]/mbar/menu[0]/menu[4]").select()
