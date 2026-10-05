@@ -98,7 +98,7 @@ def get_work_order():
         session = connection.Children(0)
     except Exception as e:
         print(f"错误: 无法连接到 SAP GUI Scripting Engine 或找不到活动会话。请确保 SAP GUI 已登录。{e}")
-        return
+        raise
     
     print("成功连接到 SAP 会话。正在执行 IW39...")
     
@@ -205,12 +205,13 @@ def get_work_order():
         if save_and_rename_active_excel(output_path):
             print(f"✅ 文件已成功保存: {output_path}")
         else:
-            print(f"❌ 文件保存失败，请检查 Excel 是否已打开")
-        
+            raise RuntimeError("文件保存失败，请检查 Excel 是否已打开")
+
     except Exception as e:
         print(f"❌ 执行 SAP 操作时发生错误: {e}")
         import traceback
         traceback.print_exc()
+        raise
 
 def save_and_rename_active_excel(new_full_path, original_window_title="Worksheet in excel (1)"):
     """
@@ -313,8 +314,8 @@ def write_to_google_sheet(excel_file_path, sheet_url, worksheet_name, auth_file,
         data_to_write = [[clean_value(cell) for cell in row] for row in data_to_write]
         
         if not data_to_write:
-            print("⚠️ 警告: Excel 文件中没有数据可写入（从第二行开始）")
-            return False
+            print("⚠️ 警告: Excel 文件中没有数据可写入（从第二行开始），跳过上传（不算失败）")
+            return True  # 空数据不是故障，让 run_all 记为成功
         
         print(f"读取到 {len(data_to_write)} 行数据（从第二行开始）")
         
@@ -411,13 +412,15 @@ if __name__ == "__main__":
         excel_file_path = os.path.join(OUTPUT_DIR, OUTPUT_FILENAME)
         time.sleep(2)  # 等待文件完全保存
         
-        write_to_google_sheet(
+        if not write_to_google_sheet(
             excel_file_path=excel_file_path,
             sheet_url=GOOGLE_SHEET_URL,
             worksheet_name=WORKSHEET_NAME,
             auth_file=SERVICE_ACCOUNT_FILE,
             start_row=2
-        )
+        ):
+            close_SAP()
+            sys.exit(1)
         
         # 6. 操作完成后关闭 SAP
         print("\nSAP 操作完成，正在关闭 SAP...")
@@ -436,4 +439,5 @@ if __name__ == "__main__":
         # 确保出错时也关闭 SAP
         close_SAP()
         print("\n执行完毕。")
+        sys.exit(1)
 
