@@ -190,8 +190,8 @@ def upload_to_google_sheets(excel_file_path, sheet_id, worksheet_name, auth_file
         df = read_sap_text_export(excel_file_path)
         
         if df.empty:
-            print("⚠️ 警告: 导出文件中没有数据")
-            return False
+            print("⚠️ 警告: 导出文件中没有数据，跳过上传（不算失败）")
+            return True  # 空数据不是故障，让 run_all 记为成功
         
         print(f"读取到 {len(df)} 行数据")
         

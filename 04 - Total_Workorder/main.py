@@ -326,8 +326,8 @@ def write_to_google_sheet(excel_file_path, sheet_url, worksheet_name, auth_file,
         data_to_write = [[clean_value(cell) for cell in row] for row in data_to_write]
         
         if not data_to_write:
-            print("⚠️ 警告: Excel 文件中没有数据可写入（从第二行开始）")
-            return False
+            print("⚠️ 警告: Excel 文件中没有数据可写入（从第二行开始），跳过上传（不算失败）")
+            return True  # 空数据不是故障，让 run_all 记为成功
         
         print(f"读取到 {len(data_to_write)} 行数据（从第二行开始）")
         
