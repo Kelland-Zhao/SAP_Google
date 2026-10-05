@@ -3,6 +3,13 @@ $Python = "C:\Users\kelland zhao\scoop\apps\python311\current\python.exe"
 $Root = "C:\Users\kelland zhao\Projects\SAP_Google_AutoRun"
 $LogFile = Join-Path $Root "run_all.log"
 
+# 当前代码版本 —— 写进日志，便于事后核对本次跑的是哪一版
+$GitRev = "unknown"
+if (Get-Command git -ErrorAction SilentlyContinue) {
+    $GitRev = (git -C "$Root" rev-parse --short HEAD 2>$null | Select-Object -First 1)
+    if (-not $GitRev) { $GitRev = "unknown" }
+}
+
 $Projects = @(
     "00 - Maintenance_Plan_Adherence_Sync",
     "01 - Maintenance_Effectiveness_Sync",
@@ -21,10 +28,11 @@ $FailedList = @()
 $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-Host "========================================"
 Write-Host "  SAP 自动运行 - 共 $Total 个项目"
+Write-Host "  代码版本: $GitRev"
 Write-Host "  开始: $Timestamp"
 Write-Host "========================================"
 Write-Host ""
-"[$Timestamp] ========== 开始执行 ==========" | Out-File -Append $LogFile -Encoding UTF8
+"[$Timestamp] ========== 开始执行 (代码版本: $GitRev) ==========" | Out-File -Append $LogFile -Encoding UTF8
 
 $Index = 0
 foreach ($Project in $Projects) {
@@ -76,8 +84,8 @@ Write-Host "========================================"
 
 "[$EndTime] ========== 全部完成 (成功: $Success, 失败: $Failed) ==========" | Out-File -Append $LogFile -Encoding UTF8
 
-# 强制关闭残留的 Excel 进程
-taskkill /f /im excel.exe 2>$null
-Write-Host "Excel 进程已清理。"
+# 注意：此处原先会执行 `taskkill /f /im excel.exe`，强制关闭机器上所有 Excel。
+# 这会杀掉同事或自己正在编辑、尚未保存的工作簿，已移除。
+# 各脚本内部已有 wb.Close(SaveChanges=False) + excel.Quit() 负责收尾。
 
 Write-Host ""

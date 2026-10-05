@@ -120,7 +120,7 @@ def upload_to_google_sheets(data, sheet_id, worksheet_name, auth_file):
         ]
         
         if target_row:
-            worksheet.update(f'A{target_row}:D{target_row}', [update_data])
+            worksheet.update(range_name=f'A{target_row}:D{target_row}', values=[update_data])
             print(f"✅ 已更新月份 {data['month']} 的数据（第 {target_row} 行）")
         else:
             worksheet.append_row(update_data, value_input_option='USER_ENTERED')

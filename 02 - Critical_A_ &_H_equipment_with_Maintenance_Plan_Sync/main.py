@@ -416,7 +416,7 @@ def upload_to_google_sheets(data, sheet_id, worksheet_name, auth_file):
         
         update_data = [data['equipments_with_plan'], data['total_equipments'], data['percentage']]
         if target_row:
-            worksheet.update(f'H{target_row}:J{target_row}', [update_data])
+            worksheet.update(range_name=f'H{target_row}:J{target_row}', values=[update_data])
             print(f"✅ 已更新月份 {data['month']} 的数据（第 {target_row} 行，H-J 列）")
         else:
             new_row = [data['month'], '', '', '', '', '', ''] + update_data
@@ -457,7 +457,7 @@ def upload_no_plan_equipments(equipments, sheet_id, auth_file):
             worksheet = sh.worksheet(sheet_name)
         except gspread.exceptions.WorksheetNotFound:
             worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="3")
-            worksheet.update('A1:C1', [['设备编号', '描述', '月份']])
+            worksheet.update(range_name='A1:C1', values=[['设备编号', '描述', '月份']])
 
         if equipments:
             all_rows = worksheet.get_all_values()
