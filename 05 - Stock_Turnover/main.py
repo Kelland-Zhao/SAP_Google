@@ -117,7 +117,7 @@ def write_to_google_sheet(value, sheet_url, worksheet_name, target_month_key, au
 
         if not cell_to_find:
             print(f"❌ 查找失败：在工作表中找不到月份 '{target_month_key}'。请检查 'Month' 列数据。")
-            return
+            return False
 
         # 4. 确定目标单元格 (写入到找到的行，但固定在 B 列)
         target_row = cell_to_find.row
@@ -127,15 +127,20 @@ def write_to_google_sheet(value, sheet_url, worksheet_name, target_month_key, au
         worksheet.update(range_name=target_cell, values=[[value]])
 
         print(f"✅ 成功将值 '{value}' 写入 Google Sheet: {worksheet_name}!{target_cell}")
+        return True
 
     except gspread.exceptions.WorksheetNotFound:
         print(f"❌ Google Sheets 错误: 找不到工作表 '{worksheet_name}'。")
+        return False
     except gspread.exceptions.SpreadsheetNotFound:
         print(f"❌ Google Sheets 错误: 找不到工作簿。请务必确认已将服务账户邮箱添加为该表格的 '编辑者'。")
+        return False
     except NameError:
         print("❌ 无法执行 Google Sheets 写入，gspread 库未导入。")
+        return False
     except Exception as e:
         print(f"❌ Google Sheets 写入失败。错误: {e}")
+        return False
 
 
 def run_sap_automation(start_period, end_period, sap_compatible_dir, file_name_only):
@@ -279,13 +284,14 @@ def main_automation_process():
             # 构造 YYYYMM 格式的查找键
             target_month_key = today.strftime("%Y%m")
 
-            write_to_google_sheet(
+            if not write_to_google_sheet(
                 target_value,
                 GOOGLE_SHEET_URL,
                 WORKSHEET_NAME,
                 target_month_key,  # 传入 YYYYMM 查找键
                 SERVICE_ACCOUNT_FILE
-            )
+            ):
+                raise RuntimeError("Google Sheets 写入失败")
 
             # 步骤 5.5: 清理临时 TXT 文件
             os.remove(txt_file_path)
@@ -293,6 +299,7 @@ def main_automation_process():
 
         except Exception as e:
             print(f"❌ 数据处理/写入 XLSX 失败。错误: {e}")
+            raise
     else:
         print("❌ 无法从 SAP 导出的 TXT 文件中提取数据，跳过后续操作。")
 
@@ -302,5 +309,12 @@ def main_automation_process():
 
 if __name__ == "__main__":
     close_SAP()
-    main_automation_process()
+    try:
+        main_automation_process()
+    except Exception as e:
+        print(f"❌ 程序执行过程中发生错误: {e}")
+        import traceback
+        traceback.print_exc()
+        close_SAP()
+        sys.exit(1)
     print("\n程序执行完毕 / Program completed.")
