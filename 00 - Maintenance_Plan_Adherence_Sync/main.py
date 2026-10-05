@@ -169,7 +169,7 @@ def get_maintenance_plan_iw39():
         session = connection.Children(0)
     except Exception as e:
         print(f"错误: 无法连接到 SAP GUI Scripting Engine 或找不到活动会话。请确保 SAP GUI 已登录。{e}")
-        return
+        raise
     
     print("成功连接到 SAP 会话。正在执行 IW39...")
     
@@ -283,19 +283,21 @@ def get_maintenance_plan_iw39():
                 print(f"  - 计划订单总数: {data['planned']}")
                 print(f"  - 维护计划遵守率: {data['adherence_pct']}")
                 
-                upload_to_google_sheets(
+                if not upload_to_google_sheets(
                     data=data,
                     sheet_id=GOOGLE_SHEET_ID,
                     worksheet_name=WORKSHEET_NAME,
                     auth_file=SERVICE_ACCOUNT_FILE
-                )
+                ):
+                    raise RuntimeError("Google Sheets 上传失败")
                 
             else:
-                print("⚠️ 警告: 没有找到打开的 Excel 工作簿")
+                raise RuntimeError("没有找到打开的 Excel 工作簿，SAP 导出可能失败")
         except Exception as e:
             print(f"❌ 处理 Excel 时发生错误: {e}")
             import traceback
             traceback.print_exc()
+            raise
         
         time.sleep(2)
         
@@ -303,6 +305,7 @@ def get_maintenance_plan_iw39():
         print(f"❌ 执行 SAP 操作时发生错误: {e}")
         import traceback
         traceback.print_exc()
+        raise
 
 
 if __name__ == "__main__":
@@ -333,5 +336,6 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         close_SAP()
+        sys.exit(1)
     finally:
         print("\n执行完毕。")

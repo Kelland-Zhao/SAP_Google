@@ -85,7 +85,7 @@ def get_inventory_mb52():
                 time.sleep(5)
     if session is None:
         print("错误: 无法连接到 SAP GUI Scripting Engine，已等待60秒，请确保 SAP GUI 已登录。")
-        return
+        raise RuntimeError("无法连接到 SAP GUI 会话")
     
     print("成功连接到 SAP 会话。正在执行 MB52...")
     
@@ -139,6 +139,7 @@ def get_inventory_mb52():
         print(f"❌ 执行 SAP 操作时发生错误: {e}")
         import traceback
         traceback.print_exc()
+        raise
 
 
 def determine_process(material_code):
@@ -280,12 +281,14 @@ if __name__ == "__main__":
         excel_file_path = os.path.join(OUTPUT_DIR, OUTPUT_FILENAME)
         time.sleep(2)
         
-        upload_to_google_sheets(
+        if not upload_to_google_sheets(
             excel_file_path=excel_file_path,
             sheet_id=GOOGLE_SHEET_ID,
             worksheet_name=WORKSHEET_NAME,
             auth_file=SERVICE_ACCOUNT_FILE
-        )
+        ):
+            close_SAP()
+            sys.exit(1)
         
         print("\n" + "="*50)
         print("✅ 所有操作已完成！")
@@ -296,5 +299,6 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         close_SAP()
+        sys.exit(1)
     finally:
         print("\n执行完毕。")

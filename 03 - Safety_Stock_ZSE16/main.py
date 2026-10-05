@@ -146,6 +146,7 @@ def get_safety_stock_zse16():
         print(f"❌ 执行 SAP 操作时发生错误: {e}")
         import traceback
         traceback.print_exc()
+        raise
 
 
 def read_sap_text_export(file_path):
@@ -278,12 +279,14 @@ if __name__ == "__main__":
         excel_file_path = os.path.join(OUTPUT_DIR, OUTPUT_FILENAME)
         time.sleep(2)
         
-        upload_to_google_sheets(
+        if not upload_to_google_sheets(
             excel_file_path=excel_file_path,
             sheet_id=GOOGLE_SHEET_ID,
             worksheet_name=WORKSHEET_NAME,
             auth_file=SERVICE_ACCOUNT_FILE
-        )
+        ):
+            close_SAP()
+            sys.exit(1)
         
         print("\n" + "="*50)
         print("✅ 所有操作已完成！")
@@ -294,5 +297,6 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         close_SAP()
+        sys.exit(1)
     finally:
         print("\n执行完毕。")

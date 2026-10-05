@@ -501,7 +501,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"错误: 无法连接到 SAP GUI Scripting Engine 或找不到活动会话。请确保 SAP GUI 已登录。{e}")
             close_SAP()
-            exit(1)
+            sys.exit(1)
         
         print("成功连接到 SAP 会话。")
         
@@ -521,14 +521,14 @@ if __name__ == "__main__":
         if not ih08_file:
             print("❌ IH08 执行失败，终止程序")
             close_SAP()
-            exit(1)
+            sys.exit(1)
         
         ip18_file = get_equipments_with_plan_ip18(session, year_month, ih08_file)
         
         if not ip18_file:
             print("❌ IP18 执行失败，终止程序")
             close_SAP()
-            exit(1)
+            sys.exit(1)
         
         data = process_critical_equipment_data(ih08_file, ip18_file, year_month)
         
@@ -539,24 +539,30 @@ if __name__ == "__main__":
             print(f"  - A 级关键设备总数: {data['total_equipments']}")
             print(f"  - 百分比: {data['percentage']}")
             
-            upload_to_google_sheets(
+            if not upload_to_google_sheets(
                 data=data,
                 sheet_id=GOOGLE_SHEET_ID,
                 worksheet_name=WORKSHEET_NAME,
                 auth_file=SERVICE_ACCOUNT_FILE
-            )
+            ):
+                close_SAP()
+                sys.exit(1)
 
             if data['equipments_without_plan']:
                 print(f"\n无保养计划的A类设备数量: {len(data['equipments_without_plan'])}")
-                upload_no_plan_equipments(
+                if not upload_no_plan_equipments(
                     equipments=data['equipments_without_plan'],
                     sheet_id=GOOGLE_SHEET_ID,
                     auth_file=SERVICE_ACCOUNT_FILE
-                )
+                ):
+                    close_SAP()
+                    sys.exit(1)
             else:
                 print("\n✅ 所有A类设备均有保养计划")
         else:
             print("❌ 数据处理失败")
+            close_SAP()
+            sys.exit(1)
         
         print("\nSAP 操作完成，正在关闭 SAP...")
         close_SAP()
@@ -570,5 +576,6 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         close_SAP()
+        sys.exit(1)
     finally:
         print("\n执行完毕。")
