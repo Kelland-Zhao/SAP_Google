@@ -148,7 +148,7 @@ def run_sap_automation(start_period, end_period, sap_compatible_dir, file_name_o
             print(f"创建目录: {OUTPUT_DIR}")
         except Exception as e:
             print(f"致命错误: 无法创建输出目录。{e}")
-            return
+            raise
 
     # 2. 清理旧文件以避免覆盖提示 (解决 Error Saving the List)
     windows_path = os.path.join(OUTPUT_DIR, file_name_only)
@@ -158,7 +158,7 @@ def run_sap_automation(start_period, end_period, sap_compatible_dir, file_name_o
             print(f"清除了旧文件: {windows_path}")
         except Exception as e:
             print(f"错误: 无法删除旧的导出文件。请确保文件未被占用。{e}")
-            return  # 无法安全写入，则终止自动化
+            raise  # 无法安全写入，则终止自动化
 
     # --- 3. SAP 连接 (保持不变) ---
     try:
@@ -168,7 +168,7 @@ def run_sap_automation(start_period, end_period, sap_compatible_dir, file_name_o
         session = connection.Children(0)
     except Exception as e:
         print(f"错误: 无法连接到 SAP GUI Scripting Engine 或找不到活动会话。请确保 SAP GUI 已登录。{e}")
-        return
+        raise
 
     print(f"成功连接到 SAP 会话。正在执行 MC.7...")
 
@@ -245,7 +245,7 @@ def main_automation_process():
         print("SAP GUI 启动成功。")
     except Exception as e:
         print(f"错误：SAP GUI 启动失败或路径错误。{e}")
-        return
+        raise
     time.sleep(15)
 
     # 4. 执行 SAP 自动化操作

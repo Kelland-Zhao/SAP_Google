@@ -187,7 +187,7 @@ def get_work_order():
                 print(f"创建目录: {OUTPUT_DIR}")
             except Exception as e:
                 print(f"错误: 无法创建输出目录。{e}")
-                return
+                raise
         
         # 构建完整文件路径
         output_path = os.path.join(OUTPUT_DIR, OUTPUT_FILENAME)

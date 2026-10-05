@@ -60,7 +60,7 @@ def get_safety_stock_zse16():
         session = connection.Children(0)
     except Exception as e:
         print(f"错误: 无法连接到 SAP GUI Scripting Engine 或找不到活动会话。请确保 SAP GUI 已登录。{e}")
-        return
+        raise
     
     print("成功连接到 SAP 会话。正在执行 ZSE16...")
     

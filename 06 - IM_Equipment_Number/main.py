@@ -199,7 +199,7 @@ def get_equipment_number():
                 print(f"创建目录: {OUTPUT_DIR}")
             except Exception as e:
                 print(f"错误: 无法创建输出目录。{e}")
-                return
+                raise
         
         # 构建完整文件路径
         output_path = os.path.join(OUTPUT_DIR, get_output_filename())
@@ -257,7 +257,8 @@ def save_and_rename_active_excel(new_full_path, original_window_title="Worksheet
         Workbook = ExcelApp.ActiveWorkbook
         
         # 3. 在保存前处理数据：提取 D 列前8个字符到 M 列
-        process_excel_d_to_m_column()
+        if not process_excel_d_to_m_column():
+            raise RuntimeError("处理 Excel 数据（提取 Tag 列）失败")
         
         # 4. 执行另存为操作
         # FileFormat=51 是用于 .xlsx 格式的数字代码
@@ -366,68 +367,6 @@ def process_excel_d_to_m_column():
         
     except Exception as e:
         print(f"⚠️ 处理 Excel 数据时发生错误: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-
-def extract_first_8_chars_to_m_column(excel_file_path):
-    """
-    将 D 列中每个单元格值的前8个字符提取出来，放入 M 列对应的行
-    
-    Args:
-        excel_file_path (str): Excel 文件的完整路径
-    
-    Returns:
-        bool: 操作是否成功
-    """
-    try:
-        print(f"正在处理 Excel 文件: {excel_file_path}")
-        if not os.path.exists(excel_file_path):
-            print(f"❌ 错误: 找不到文件 {excel_file_path}")
-            return False
-        
-        # 读取 Excel 文件
-        df = pd.read_excel(excel_file_path, engine='openpyxl')
-        
-        # 确保 D 列和 M 列存在（如果不存在则创建）
-        if len(df.columns) < 4:
-            print("❌ 错误: Excel 文件至少需要4列（D列）")
-            return False
-        
-        # 获取 D 列的列名（索引为3，因为从0开始）
-        d_column = df.columns[3] if len(df.columns) > 3 else None
-        
-        if d_column is None:
-            print("❌ 错误: 找不到 D 列")
-            return False
-        
-        # 确保 M 列存在（索引为12）
-        while len(df.columns) < 13:
-            df[f'Column_{len(df.columns) + 1}'] = ''
-        
-        m_column = df.columns[12] if len(df.columns) > 12 else None
-        
-        # 处理 D 列，提取前8个字符并放入 M 列
-        def extract_first_8(value):
-            """提取值的前8个字符"""
-            if pd.isna(value) or value is None:
-                return ''
-            # 转换为字符串并提取前8个字符
-            str_value = str(value)
-            return str_value[:8] if len(str_value) >= 8 else str_value
-        
-        # 应用函数到 D 列，结果放入 M 列
-        df[m_column] = df[d_column].apply(extract_first_8)
-        
-        # 保存文件
-        df.to_excel(excel_file_path, index=False, engine='openpyxl')
-        
-        print(f"✅ 成功将 D 列的前8个字符提取到 M 列")
-        return True
-        
-    except Exception as e:
-        print(f"❌ 处理 Excel 文件时发生错误: {e}")
         import traceback
         traceback.print_exc()
         return False
