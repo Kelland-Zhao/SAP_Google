@@ -13,9 +13,11 @@
   * 只开一个会话、看一眼、关掉
   * 不动已有的会话
 
-用法：先在 Windows 上手动打开 SAP 并登录，再运行本脚本。
+用法：直接运行即可。SAP 没开着的话脚本会自己启动它。
 """
 
+import os
+import sys
 import time
 
 import win32com.client
@@ -71,13 +73,25 @@ def main():
     print("SAP 新会话能力探针")
     print(SEP)
 
-    # ── 0. 连接 ────────────────────────────────────────────────────────────
+    # ── 0. 连接（SAP 没开着就自己启动）────────────────────────────────────
+    we_started_it = False
     try:
         app = win32com.client.GetObject("SAPGUI").GetScriptingEngine
+        print("检测到 SAP 已在运行，直接使用。")
     except Exception as e:
-        print(f"❌ 无法连接 SAP GUI: {type(e).__name__}: {e}")
-        print("   请先手动打开 SAP 并登录，再重跑本脚本。")
-        return
+        print(f"没有检测到正在运行的 SAP（{type(e).__name__}），正在启动...")
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        try:
+            from sap_common import start_sap, wait_for_sap_session
+            start_sap()
+            print("等待 SAP 会话就绪...")
+            wait_for_sap_session()
+            we_started_it = True
+            app = win32com.client.GetObject("SAPGUI").GetScriptingEngine
+            print("SAP 已启动。")
+        except Exception as e2:
+            print(f"❌ 启动 SAP 失败: {type(e2).__name__}: {e2}")
+            return
 
     try:
         print(f"GUI 版本: {app.MajorVersion}.{app.MinorVersion}.{app.PatchLevel}")
@@ -219,6 +233,15 @@ def main():
           + {True: "✅ 是", False: "❌ 否", None: "— 未测"}[results["B"]])
     print(f"  C. /o 备选可用        : {'✅ 是' if results['C'] else '❌ 否'}")
     print(f"  D. 额外会话上限       : 至少 {len(opened)} 个")
+
+    if we_started_it:
+        print("\n（本次是探针自己启动的 SAP，正在关闭）")
+        try:
+            from sap_common import close_sap
+            close_sap()
+        except Exception as e:
+            print(f"  关闭失败，可手动关：{e}")
+
     print(f"\n请把以上全部输出发给 Claude。")
 
 
