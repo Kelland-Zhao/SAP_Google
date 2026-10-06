@@ -135,9 +135,13 @@ def get_a_equipments_ih08(session, year_month, first_day_str, last_day_str):
             traceback.print_exc()
             return None
         
-        session.findById("wnd[0]").close()
-        time.sleep(1)
-        
+        # 注意：这里原先有一句 session.findById("wnd[0]").close()，已删除。
+        # 它会在 IH08 结束时关掉自己的主窗口，而下面的 IP18 还要继续用同一个会话。
+        # 以前每个脚本都重启 SAP、整机只有一个会话，关"最后一个窗口"是无效操作，
+        # 所以问题被掩盖了；改成各自开新会话后，这一句真的会把会话关掉，
+        # 导致 IP18 报 RPC_E_DISCONNECTED。
+        # IP18 开头的 /NIP18 本来就会重设事务，不需要关窗口。
+
         return output_file_path
         
     except Exception as e:
