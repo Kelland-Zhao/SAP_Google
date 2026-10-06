@@ -93,7 +93,9 @@ python "03 - Safety_Stock_ZSE16\main.py" ; "退出码 = $LASTEXITCODE"
 
 `03` 和 `07` 写入**另一张**表格：`03` 用 `安全库存数据` 工作表，`07` 用 `MasterData` 工作表。
 
-### 不在 `run_all.ps1` 中，需手动运行
+### 不在 `run_all.ps1` 中（当前挂起）
+
+这两个项目**因 SAP 系统层面的问题暂时不可用**，已挂起。不是脚本本身的问题，恢复后需单独手动运行。
 
 | 目录 | SAP 事务码 | 说明 |
 |---|---|---|
@@ -133,7 +135,7 @@ pip install pywin32 openpyxl gspread google-auth requests urllib3 pandas numpy
 
 **SAP 凭据**：脚本里写的是字面量 `'-user=USERNAME', '-pw=PASSWORD'`，**这是有意的占位符，不是配置遗漏**。公司电脑上 SAP 靠 SSO 登录，这两个参数不生效。不要试图"补全"它们。
 
-> ⚠️ `05 - Stock_Turnover/main.py` 顶部有句注释写「请在使用前替换 USERNAME 和 PASSWORD」，**那句话已经过时**，忽略它。
+（这段占位符统一定义在仓库根的 `sap_common.py` 里，各脚本通过 `start_sap()` 调用。）
 
 ---
 
@@ -153,10 +155,11 @@ pip install pywin32 openpyxl gspread google-auth requests urllib3 pandas numpy
 ## 已知限制
 
 1. **独占 SAP 和 Excel**——见开头的警告。这是当前设计的前提，不是 bug。
-2. **固定秒数等待**——脚本用 `time.sleep()` 等待 SAP 和 Excel 就绪（9 个 `main.py` 里共 91 处）。机器慢的时候可能等不够，快的时候白等。
-3. **每个脚本都重启一次 SAP**——7 个项目各做一次"关掉 SAP → 重新启动"，每轮约 2.5 分钟花在这上面。
-4. **公共代码重复**——`close_SAP()`、`sap_auto_logo()`、`get_resource_path()` 等函数在 12 个文件里各有一份，改一处要改十二处。
-5. **连接 Google Sheets 时关闭了 TLS 校验**（`verify = False`），为兼容公司代理。属于可收紧项。
+2. **每个脚本都重启一次 SAP**——7 个项目各做一次"关掉 → 启动 → 等就绪"。等待已从"硬等 20 秒"改成轮询（`wait_for_sap_session`，实测 7–9 次 × 1 秒，超时上限 60 秒）。**待办**：让 `run_all.ps1` 只启动一次、各脚本复用，可省下这部分。
+3. **仍有大量固定秒数等待**——9 个 `main.py` 里还有 **73 处** `time.sleep()`，单轮合计约 **147 秒**。SAP 启动相关的那批已改成轮询，**其余散布在 SAP 操作步骤之间，尚未处理**——机器慢的时候可能等不够。
+4. **连接 Google Sheets 时关闭了 TLS 校验**（`verify = False`），为兼容公司代理。属于可收紧项。
+
+> 历史：公共代码重复（`close_SAP` / `start_sap` / `get_resource_path` 曾在 9 个文件里各有一份）已于 2026-10-06 抽出到 `sap_common.py`，不再是问题。
 
 ---
 
@@ -165,10 +168,20 @@ pip install pywin32 openpyxl gspread google-auth requests urllib3 pandas numpy
 | 文件 | 说明 |
 |---|---|
 | `run_all.ps1` | 编排器：依次运行 7 个项目并统计成败 |
+| **`sap_common.py`** | **各脚本共用的公共模块**，提供 `get_resource_path` / `start_sap` / `wait_for_sap_session` / `close_sap`。SAP 的系统、客户端、语言等配置也在这里 |
 | `run_all.log` | 运行日志（含代码版本、每步耗时、每个脚本的退出码） |
-| `*/batch_update.py` | **一次性历史回填脚本**（`00`/`01`/`02` 各一份），用硬编码的月份列表补跑历史数据，日常运行不会执行 |
+| `*/batch_update.py` | **一次性历史回填脚本**（`00`/`01`/`02` 各一份），用硬编码的月份列表补跑历史数据，日常运行不会执行。**尚未迁到 `sap_common`** |
 | `08 - .../*.vbs`、`*/*.txt` | SAP GUI 录制脚本及其导出产物，历史遗留 |
 | `*/.gitignore` | 各项目自己的忽略规则 |
+
+各脚本开头这两行的作用，是让它们**既能被 `run_all.ps1` 调用、也能单独运行**：
+
+```python
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from sap_common import get_resource_path, start_sap, wait_for_sap_session, close_sap
+```
+
+> ⚠️ `get_resource_path()` 的基准目录是**仓库根**，不是项目目录。用它取密钥时写 `get_resource_path('pyreadsp-xxx.json')`，**不要写 `'../pyreadsp-xxx.json'`**。
 
 ---
 
