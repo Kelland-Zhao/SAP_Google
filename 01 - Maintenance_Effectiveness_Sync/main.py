@@ -1,4 +1,3 @@
-import subprocess
 import time
 import win32com.client
 import os
@@ -15,28 +14,12 @@ OUTPUT_DIR = r"O:\My Drive\071 - SAP 数据\Maintenance_Effectiveness"
 GOOGLE_SHEET_ID = '1dWWNiIlRqnXDeDiY4MS_cPSfseDb0g1NHK1dC1HPSnY'
 WORKSHEET_NAME = 'MasterData'
 
-def get_resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
+# 公共部分在仓库根的 sap_common.py，不在本脚本所在目录。
+# 先把仓库根加进 sys.path，这样单个脚本仍然可以独立运行。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from sap_common import get_resource_path, start_sap, wait_for_sap_session, close_sap
 
-SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
-
-def sap_auto_logo():
-    subprocess.check_call(['C:\\Program Files (x86)\\SAP\\FrontEnd\\SAPgui\\sapshcut.exe', '-system=LAP', '-client=321',
-                           '-user=USERNAME', '-pw=PASSWORD', '-language=ZH'])
-    time.sleep(15)
-    print("sap open successfully")
-
-
-def close_SAP():
-    try:
-        os.system('taskkill /im saplogon.exe /t /f')
-        print("SAP GUI 进程已成功关闭。")
-    except Exception as e:
-        print(f"关闭 SAP 进程失败: {e}")
+SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 
 
 def process_effectiveness_data(excel_file_path, year_month):
@@ -181,7 +164,7 @@ def is_empty_result(session):
     return False
 
 
-def get_maintenance_effectiveness_iw47():
+def get_maintenance_effectiveness_iw47(session):
     today = datetime.date.today()
     first_day = today.replace(day=1)
     last_day = today.replace(day=calendar.monthrange(today.year, today.month)[1])
@@ -200,17 +183,8 @@ def get_maintenance_effectiveness_iw47():
         except Exception as e:
             print(f"警告: 无法删除旧文件 {output_file_path}: {e}")
     
-    try:
-        SapGuiAuto = win32com.client.GetObject("SAPGUI")
-        application = SapGuiAuto.GetScriptingEngine
-        connection = application.Children(0)
-        session = connection.Children(0)
-    except Exception as e:
-        print(f"错误: 无法连接到 SAP GUI Scripting Engine 或找不到活动会话。请确保 SAP GUI 已登录。{e}")
-        raise
-    
-    print("成功连接到 SAP 会话。正在执行 IW47...")
-    
+    print("正在执行 IW47...")
+
     try:
         session.findById("wnd[0]").maximize()
         session.findById("wnd[0]/tbar[0]/okcd").text = "IW47"
@@ -336,20 +310,20 @@ def get_maintenance_effectiveness_iw47():
 if __name__ == "__main__":
     try:
         print("正在清理可能存在的 SAP 进程...")
-        close_SAP()
+        close_sap()
         time.sleep(2)
         
         print("正在启动 SAP GUI...")
-        sap_auto_logo()
+        start_sap()
         
-        print("等待 SAP GUI 完全加载...")
-        time.sleep(5)
-        
+        print("等待 SAP 会话就绪...")
+        session = wait_for_sap_session()
+
         print("开始执行 IW47 维护有效性数据提取...")
-        get_maintenance_effectiveness_iw47()
+        get_maintenance_effectiveness_iw47(session)
         
         print("\nSAP 操作完成，正在关闭 SAP...")
-        close_SAP()
+        close_sap()
         
         print("\n" + "="*50)
         print("✅ 所有操作已完成！")
@@ -359,7 +333,7 @@ if __name__ == "__main__":
         print(f"❌ 程序执行过程中发生错误: {e}")
         import traceback
         traceback.print_exc()
-        close_SAP()
+        close_sap()
         sys.exit(1)
     finally:
         print("\n执行完毕。")

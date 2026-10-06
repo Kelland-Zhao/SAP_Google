@@ -14,7 +14,6 @@ def _patched_request(self, *args, **kwargs):
     return _original_request(self, *args, **kwargs)
 requests.Session.request = _patched_request
 
-import subprocess
 import time
 import win32com.client
 import sys
@@ -27,12 +26,10 @@ import re
 import openpyxl
 import gspread
 
-def get_resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
+# 公共部分在仓库根的 sap_common.py，不在本脚本所在目录。
+# 先把仓库根加进 sys.path，这样单个脚本仍然可以独立运行。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from sap_common import get_resource_path, start_sap, wait_for_sap_session, close_sap
 
 # --- 核心配置 ---
 # 文件路径配置
@@ -42,22 +39,7 @@ OUTPUT_FILENAME = "Temporary_File.xlsx"
 # Google Sheets 配置
 GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1YzMGIQ2RcBlGIadWh5yfxlCmOpCuOBHpgKfEVz8_W98/edit?gid=0#gid=0'
 WORKSHEET_NAME = 'Total_Workorder'
-SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
-
-def sap_auto_logo():
-    subprocess.check_call(['C:\\Program Files (x86)\\SAP\\FrontEnd\\SAPgui\\sapshcut.exe', '-system=LAP', '-client=321',
-                           '-user=USERNAME', '-pw=PASSWORD', '-language=ZH'])
-    time.sleep(15)
-    print("sap open successfully")
-
-
-def close_SAP():
-    """使用 Windows taskkill 命令强制关闭所有 SAP GUI 进程 (saplogon.exe)"""
-    try:
-        os.system('taskkill /im saplogon.exe /t /f')
-        print("SAP GUI 进程已成功关闭。")
-    except Exception as e:
-        print(f"关闭 SAP 进程失败: {e}")
+SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 
 
 def get_date_range():
@@ -84,22 +66,11 @@ def get_date_range():
     return start_date_str, end_date_str
 
 
-def get_work_order():
+def get_work_order(session):
     """
-    连接到 SAP GUI 并执行 IW39 事务码，获取工单数据
-    基于 VBS 脚本转换而来
+    执行 IW39 事务码，获取工单数据。
+    会话由调用方通过 sap_common.wait_for_sap_session() 取得后传入。
     """
-    try:
-        # 连接到 SAP GUI
-        SapGuiAuto = win32com.client.GetObject("SAPGUI")
-        application = SapGuiAuto.GetScriptingEngine
-        connection = application.Children(0)
-        session = connection.Children(0)
-    except Exception as e:
-        print(f"错误: 无法连接到 SAP GUI Scripting Engine 或找不到活动会话。请确保 SAP GUI 已登录。{e}")
-        raise
-    
-    print("成功连接到 SAP 会话。正在执行 IW39...")
     
     # 获取日期范围
     start_date, end_date = get_date_range()
@@ -440,20 +411,20 @@ if __name__ == "__main__":
     try:
         # 1. 清理可能存在的 SAP 进程
         print("正在清理可能存在的 SAP 进程...")
-        close_SAP()
+        close_sap()
         time.sleep(2)
         
         # 2. 自动登录 SAP
         print("正在启动 SAP GUI...")
-        sap_auto_logo()
+        start_sap()
         
-        # 3. 等待 SAP 完全加载
-        print("等待 SAP GUI 完全加载...")
-        time.sleep(5)
-        
+        # 3. 等待 SAP 会话就绪
+        print("等待 SAP 会话就绪...")
+        session = wait_for_sap_session()
+
         # 4. 执行 SAP 操作 - 获取工单数据
         print("开始执行 SAP 操作...")
-        get_work_order()
+        get_work_order(session)
         
         # 5. 将 Excel 数据复制到 Google Sheets
         print("\n" + "="*50)
@@ -470,13 +441,13 @@ if __name__ == "__main__":
             auth_file=SERVICE_ACCOUNT_FILE,
             start_row=2
         ):
-            close_SAP()
+            close_sap()
             sys.exit(1)
         
         # 6. 操作完成后关闭 SAP
         print("\nSAP 操作完成，正在关闭 SAP...")
         time.sleep(2)
-        close_SAP()
+        close_sap()
         
         print("\n" + "="*50)
         print("✅ 所有操作已完成！")
@@ -488,7 +459,7 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         # 确保出错时也关闭 SAP
-        close_SAP()
+        close_sap()
         print("\n执行完毕。")
         sys.exit(1)
 

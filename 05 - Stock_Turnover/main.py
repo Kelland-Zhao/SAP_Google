@@ -1,4 +1,3 @@
-import subprocess
 import time
 import win32com.client
 import sys
@@ -13,40 +12,21 @@ import urllib3
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import AuthorizedSession
 
-def get_resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
-
-# --- 核心配置 ---
-# 注意：请在使用前替换 USERNAME 和 PASSWORD
-SAP_SYSTEM = 'LAP'
-SAP_CLIENT = '321'
-SAP_USER = 'USERNAME'
-SAP_PASSWORD = 'PASSWORD'
-SAP_LANGUAGE = 'ZH'
+# 公共部分在仓库根的 sap_common.py，不在本脚本所在目录。
+# 先把仓库根加进 sys.path，这样单个脚本仍然可以独立运行。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from sap_common import get_resource_path, start_sap, wait_for_sap_session, close_sap
 
 # --- 文件路径配置 ---
 OUTPUT_DIR = r"O:\My Drive\071 - SAP 数据\StockTurnover"
 OUTPUT_FILENAME = "Temporary_StockTurnover.txt"
 
 # --- Google Sheets 配置 ---
-SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
+SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1Pa0A6T_qmu5hl2zEPHil-jDDUwc0v_YXGk1PCSgSMB4/edit'
 WORKSHEET_NAME = 'Summary'
 
 # -----------------------------------------------
-
-
-def close_SAP():
-    """使用 Windows taskkill 命令强制关闭所有 SAP GUI 进程 (saplogon.exe)"""
-    try:
-        os.system('taskkill /im saplogon.exe /t /f')
-        print("SAP GUI 进程已成功关闭。")
-    except Exception as e:
-        print(f"关闭 SAP 进程失败: {e}")
 
 
 def parse_sap_list_report_to_dataframe(file_path):
@@ -143,8 +123,8 @@ def write_to_google_sheet(value, sheet_url, worksheet_name, target_month_key, au
         return False
 
 
-def run_sap_automation(start_period, end_period, sap_compatible_dir, file_name_only):
-    """连接到 SAP 会话并执行 MC.7 操作"""
+def run_sap_automation(session, start_period, end_period, sap_compatible_dir, file_name_only):
+    """执行 MC.7 操作。会话由调用方通过 sap_common.wait_for_sap_session() 取得后传入。"""
 
     # 1. 确保输出目录存在
     if not os.path.exists(OUTPUT_DIR):
@@ -165,17 +145,7 @@ def run_sap_automation(start_period, end_period, sap_compatible_dir, file_name_o
             print(f"错误: 无法删除旧的导出文件。请确保文件未被占用。{e}")
             raise  # 无法安全写入，则终止自动化
 
-    # --- 3. SAP 连接 (保持不变) ---
-    try:
-        SapGuiAuto = win32com.client.GetObject("SAPGUI")
-        application = SapGuiAuto.GetScriptingEngine
-        connection = application.Children(0)
-        session = connection.Children(0)
-    except Exception as e:
-        print(f"错误: 无法连接到 SAP GUI Scripting Engine 或找不到活动会话。请确保 SAP GUI 已登录。{e}")
-        raise
-
-    print(f"成功连接到 SAP 会话。正在执行 MC.7...")
+    print(f"正在执行 MC.7...")
 
     # --- 4. MC.7 事务码操作代码 ---
     session.findById("wnd[0]/tbar[0]/okcd").text = "mc.7"
@@ -242,19 +212,14 @@ def main_automation_process():
     print(f"动态期间计算成功: 从 {start_period} 到 {end_period}")
 
     # 3. 启动 SAP
-    try:
-        subprocess.Popen([r'C:\Program Files (x86)\SAP\FrontEnd\SAPgui\sapshcut.exe',
-                          f'-system={SAP_SYSTEM}', f'-client={SAP_CLIENT}',
-                          f'-user={SAP_USER}', f'-pw={SAP_PASSWORD}',
-                          f'-language={SAP_LANGUAGE}'])
-        print("SAP GUI 启动成功。")
-    except Exception as e:
-        print(f"错误：SAP GUI 启动失败或路径错误。{e}")
-        raise
-    time.sleep(15)
+    start_sap()
 
-    # 4. 执行 SAP 自动化操作
-    run_sap_automation(start_period, end_period, sap_compatible_dir, file_name_only)
+    # 4. 等待 SAP 会话就绪
+    print("等待 SAP 会话就绪...")
+    session = wait_for_sap_session()
+
+    # 5. 执行 SAP 自动化操作
+    run_sap_automation(session, start_period, end_period, sap_compatible_dir, file_name_only)
 
     # ***************************************************************
     # 5. TXT/XLSX 转换、数据提取和 Google Sheets 写入
@@ -304,17 +269,17 @@ def main_automation_process():
         print("❌ 无法从 SAP 导出的 TXT 文件中提取数据，跳过后续操作。")
 
     # 6. 关闭 SAP 进程
-    close_SAP()
+    close_sap()
 
 
 if __name__ == "__main__":
-    close_SAP()
+    close_sap()
     try:
         main_automation_process()
     except Exception as e:
         print(f"❌ 程序执行过程中发生错误: {e}")
         import traceback
         traceback.print_exc()
-        close_SAP()
+        close_sap()
         sys.exit(1)
     print("\n程序执行完毕 / Program completed.")

@@ -1,7 +1,6 @@
 import warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
 
-import subprocess
 import time
 import win32com.client
 import sys
@@ -12,12 +11,10 @@ import gspread
 import requests
 import urllib3
 
-def get_resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
+# 公共部分在仓库根的 sap_common.py，不在本脚本所在目录。
+# 先把仓库根加进 sys.path，这样单个脚本仍然可以独立运行。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from sap_common import get_resource_path, start_sap, wait_for_sap_session, close_sap
 
 OUTPUT_DIR = r"O:\My Drive\071 - SAP 数据\Safety_Stock"
 OUTPUT_FILENAME = "Temporary_File.txt"
@@ -27,24 +24,10 @@ WORKSHEET_NAME = '安全库存数据'
 
 # 仅上传以下列，键为 SAP 字段名，值为 Google Sheets 中文表头
 COLUMN_MAPPING = {'MATNR': '物料', 'EISBE': '安全库存'}
-SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
-
-def sap_auto_logo():
-    subprocess.check_call(['C:\\Program Files (x86)\\SAP\\FrontEnd\\SAPgui\\sapshcut.exe', '-system=LAP', '-client=321',
-                           '-user=USERNAME', '-pw=PASSWORD', '-language=ZH'])
-    time.sleep(15)
-    print("sap open successfully")
+SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 
 
-def close_SAP():
-    try:
-        os.system('taskkill /im saplogon.exe /t /f')
-        print("SAP GUI 进程已成功关闭。")
-    except Exception as e:
-        print(f"关闭 SAP 进程失败: {e}")
-
-
-def get_safety_stock_zse16():
+def get_safety_stock_zse16(session):
     output_file_path = os.path.join(OUTPUT_DIR, OUTPUT_FILENAME)
     if os.path.exists(output_file_path):
         try:
@@ -53,16 +36,7 @@ def get_safety_stock_zse16():
         except Exception as e:
             print(f"警告: 无法删除旧文件 {output_file_path}: {e}")
     
-    try:
-        SapGuiAuto = win32com.client.GetObject("SAPGUI")
-        application = SapGuiAuto.GetScriptingEngine
-        connection = application.Children(0)
-        session = connection.Children(0)
-    except Exception as e:
-        print(f"错误: 无法连接到 SAP GUI Scripting Engine 或找不到活动会话。请确保 SAP GUI 已登录。{e}")
-        raise
-    
-    print("成功连接到 SAP 会话。正在执行 ZSE16...")
+    print("正在执行 ZSE16...")
     
     try:
         session.findById("wnd[0]").resizeWorkingPane(232, 29, False)
@@ -256,21 +230,21 @@ def upload_to_google_sheets(excel_file_path, sheet_id, worksheet_name, auth_file
 if __name__ == "__main__":
     try:
         print("正在清理可能存在的 SAP 进程...")
-        close_SAP()
+        close_sap()
         time.sleep(2)
         
         print("正在启动 SAP GUI...")
-        sap_auto_logo()
+        start_sap()
         
-        print("等待 SAP GUI 完全加载...")
-        time.sleep(5)
-        
+        print("等待 SAP 会话就绪...")
+        session = wait_for_sap_session()
+
         print("开始执行 SAP 操作...")
-        get_safety_stock_zse16()
+        get_safety_stock_zse16(session)
         
         print("\nSAP 操作完成，正在关闭 SAP...")
         time.sleep(2)
-        close_SAP()
+        close_sap()
         
         print("\n" + "="*50)
         print("开始将导出数据上传到 Google Sheets...")
@@ -285,7 +259,7 @@ if __name__ == "__main__":
             worksheet_name=WORKSHEET_NAME,
             auth_file=SERVICE_ACCOUNT_FILE
         ):
-            close_SAP()
+            close_sap()
             sys.exit(1)
         
         print("\n" + "="*50)
@@ -296,7 +270,7 @@ if __name__ == "__main__":
         print(f"❌ 程序执行过程中发生错误: {e}")
         import traceback
         traceback.print_exc()
-        close_SAP()
+        close_sap()
         sys.exit(1)
     finally:
         print("\n执行完毕。")

@@ -14,7 +14,6 @@ def _patched_request(self, *args, **kwargs):
     return _original_request(self, *args, **kwargs)
 requests.Session.request = _patched_request
 
-import subprocess
 import time
 import win32com.client
 import sys
@@ -28,12 +27,10 @@ import gspread
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import AuthorizedSession
 
-def get_resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
+# 公共部分在仓库根的 sap_common.py，不在本脚本所在目录。
+# 先把仓库根加进 sys.path，这样单个脚本仍然可以独立运行。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from sap_common import get_resource_path, start_sap, wait_for_sap_session, close_sap
 
 # --- 核心配置 ---
 # 文件路径配置
@@ -48,7 +45,7 @@ def get_output_filename():
 # Google Sheets 配置
 GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/12MXO53wJC8s_J-IE2uGY5jx35rnUE7rxW1xvwVU-FxM/edit?gid=151672918#gid=151672918'
 WORKSHEET_NAME = 'Equipment_Number_EAM'
-SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
+SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 
 # 由 D 列前 8 个字符生成的新增列，写入位置为导出文件现有末列+1
 TAG_COLUMN_HEADER = '机台号 - Tag'
@@ -57,21 +54,6 @@ TAG_COLUMN_HEADER = '机台号 - Tag'
 WORK_CENTERS = ['PMMSXFAC', 'PMMSXTF1', 'PMMSXWHS', 'PMMSXPK1', 'PMMSXTF2', 'PMMSXIN2', 'PMMSXIN1']
 MULTI_SELECT_ROW = ('wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010'
                     '/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I')
-
-def sap_auto_logo():
-    subprocess.check_call(['C:\\Program Files (x86)\\SAP\\FrontEnd\\SAPgui\\sapshcut.exe', '-system=LAP', '-client=321',
-                           '-user=USERNAME', '-pw=PASSWORD', '-language=ZH'])  # Login to CAP
-    time.sleep(15)
-    print("sap open successfully")
-
-
-def close_SAP():
-    """使用 Windows taskkill 命令强制关闭所有 SAP GUI 进程 (saplogon.exe)"""
-    try:
-        os.system('taskkill /im saplogon.exe /t /f')
-        print("SAP GUI 进程已成功关闭。")
-    except Exception as e:
-        print(f"关闭 SAP 进程失败: {e}")
 
 
 def get_date_range():
@@ -95,22 +77,12 @@ def get_date_range():
     return start_date_str, end_date_str
 
 
-def get_equipment_number():
+def get_equipment_number(session):
     """
-    连接到 SAP GUI 并执行 IH08 事务码，获取设备编号数据
-    基于 IM_Equipment_Number.vbs 脚本转换而来
+    执行 IH08 事务码，获取设备编号数据。
+    会话由调用方通过 sap_common.wait_for_sap_session() 取得后传入。
     """
-    try:
-        # 连接到 SAP GUI
-        SapGuiAuto = win32com.client.GetObject("SAPGUI")
-        application = SapGuiAuto.GetScriptingEngine
-        connection = application.Children(0)
-        session = connection.Children(0)
-    except Exception as e:
-        print(f"错误: 无法连接到 SAP GUI Scripting Engine 或找不到活动会话。请确保 SAP GUI 已登录。{e}")
-        raise
-    
-    print("成功连接到 SAP 会话。正在执行 IH08...")
+    print("正在执行 IH08...")
     
     try:
         # 最大化窗口
@@ -496,20 +468,20 @@ if __name__ == "__main__":
     try:
         # 1. 清理可能存在的 SAP 进程
         print("正在清理可能存在的 SAP 进程...")
-        close_SAP()
+        close_sap()
         time.sleep(2)
         
         # 2. 自动登录 SAP
         print("正在启动 SAP GUI...")
-        sap_auto_logo()
+        start_sap()
         
-        # 3. 等待 SAP 完全加载
-        print("等待 SAP GUI 完全加载...")
-        time.sleep(5)  # 额外等待时间，确保 SAP 完全就绪
-        
+        # 3. 等待 SAP 会话就绪
+        print("等待 SAP 会话就绪...")
+        session = wait_for_sap_session()
+
         # 4. 执行 SAP 操作 - 获取设备编号数据
         print("开始执行 SAP 操作...")
-        get_equipment_number()
+        get_equipment_number(session)
         
         # 5. 将 Excel 数据复制到 Google Sheets
         print("\n" + "="*50)
@@ -526,13 +498,13 @@ if __name__ == "__main__":
             auth_file=SERVICE_ACCOUNT_FILE,
             start_row=1
         ):
-            close_SAP()
+            close_sap()
             sys.exit(1)
         
         # 6. 操作完成后关闭 SAP
         print("\nSAP 操作完成，正在关闭 SAP...")
         time.sleep(2)  # 等待操作完成
-        close_SAP()
+        close_sap()
         
         print("\n" + "="*50)
         print("✅ 所有操作已完成！")
@@ -543,7 +515,7 @@ if __name__ == "__main__":
         import traceback
         traceback.print_exc()
         # 确保出错时也关闭 SAP
-        close_SAP()
+        close_sap()
         sys.exit(1)
     finally:
         print("\n执行完毕 / Completed.")

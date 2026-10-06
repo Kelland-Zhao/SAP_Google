@@ -1,4 +1,3 @@
-import subprocess
 import time
 import win32com.client
 import os
@@ -24,28 +23,12 @@ OUTPUT_DIR_IP18 = r"O:\My Drive\071 - SAP 数据\A_Equipments_with_Maintenance_P
 GOOGLE_SHEET_ID = '1dWWNiIlRqnXDeDiY4MS_cPSfseDb0g1NHK1dC1HPSnY'
 WORKSHEET_NAME = 'MasterData'
 
-def get_resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
+# 公共部分在仓库根的 sap_common.py，不在本脚本所在目录。
+# 先把仓库根加进 sys.path，这样单个脚本仍然可以独立运行。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from sap_common import get_resource_path, start_sap, wait_for_sap_session, close_sap
 
-SERVICE_ACCOUNT_FILE = get_resource_path('../pyreadsp-b5b9c1909de6.json')
-
-def sap_auto_logo():
-    subprocess.check_call(['C:\\Program Files (x86)\\SAP\\FrontEnd\\SAPgui\\sapshcut.exe', '-system=LAP', '-client=321',
-                           '-user=USERNAME', '-pw=PASSWORD', '-language=ZH'])
-    time.sleep(15)
-    print("sap open successfully")
-
-
-def close_SAP():
-    try:
-        os.system('taskkill /im saplogon.exe /t /f')
-        print("SAP GUI 进程已成功关闭。")
-    except Exception as e:
-        print(f"关闭 SAP 进程失败: {e}")
+SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 
 
 def get_a_equipments_ih08(session, year_month, first_day_str, last_day_str):
@@ -484,26 +467,14 @@ def upload_no_plan_equipments(equipments, sheet_id, auth_file):
 if __name__ == "__main__":
     try:
         print("正在清理可能存在的 SAP 进程...")
-        close_SAP()
+        close_sap()
         time.sleep(2)
         
         print("正在启动 SAP GUI...")
-        sap_auto_logo()
+        start_sap()
         
-        print("等待 SAP GUI 完全加载...")
-        time.sleep(5)
-        
-        try:
-            SapGuiAuto = win32com.client.GetObject("SAPGUI")
-            application = SapGuiAuto.GetScriptingEngine
-            connection = application.Children(0)
-            session = connection.Children(0)
-        except Exception as e:
-            print(f"错误: 无法连接到 SAP GUI Scripting Engine 或找不到活动会话。请确保 SAP GUI 已登录。{e}")
-            close_SAP()
-            sys.exit(1)
-        
-        print("成功连接到 SAP 会话。")
+        print("等待 SAP 会话就绪...")
+        session = wait_for_sap_session()
         
         today = datetime.date.today()
         first_day = today.replace(day=1)
@@ -520,14 +491,14 @@ if __name__ == "__main__":
         
         if not ih08_file:
             print("❌ IH08 执行失败，终止程序")
-            close_SAP()
+            close_sap()
             sys.exit(1)
         
         ip18_file = get_equipments_with_plan_ip18(session, year_month, ih08_file)
         
         if not ip18_file:
             print("❌ IP18 执行失败，终止程序")
-            close_SAP()
+            close_sap()
             sys.exit(1)
         
         data = process_critical_equipment_data(ih08_file, ip18_file, year_month)
@@ -545,7 +516,7 @@ if __name__ == "__main__":
                 worksheet_name=WORKSHEET_NAME,
                 auth_file=SERVICE_ACCOUNT_FILE
             ):
-                close_SAP()
+                close_sap()
                 sys.exit(1)
 
             if data['equipments_without_plan']:
@@ -555,17 +526,17 @@ if __name__ == "__main__":
                     sheet_id=GOOGLE_SHEET_ID,
                     auth_file=SERVICE_ACCOUNT_FILE
                 ):
-                    close_SAP()
+                    close_sap()
                     sys.exit(1)
             else:
                 print("\n✅ 所有A类设备均有保养计划")
         else:
             print("❌ 数据处理失败")
-            close_SAP()
+            close_sap()
             sys.exit(1)
         
         print("\nSAP 操作完成，正在关闭 SAP...")
-        close_SAP()
+        close_sap()
         
         print("\n" + "="*50)
         print("✅ 所有操作已完成！")
@@ -575,7 +546,7 @@ if __name__ == "__main__":
         print(f"❌ 程序执行过程中发生错误: {e}")
         import traceback
         traceback.print_exc()
-        close_SAP()
+        close_sap()
         sys.exit(1)
     finally:
         print("\n执行完毕。")
