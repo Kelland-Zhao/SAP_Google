@@ -26,7 +26,8 @@ WORKSHEET_NAME = 'MasterData'
 # 公共部分在仓库根的 sap_common.py，不在本脚本所在目录。
 # 先把仓库根加进 sys.path，这样单个脚本仍然可以独立运行。
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from sap_common import get_resource_path, start_sap, wait_for_sap_session, close_sap
+from sap_common import (get_resource_path, ensure_sap_running,
+                        open_session, close_session, close_sap)
 
 SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 
@@ -465,16 +466,12 @@ def upload_no_plan_equipments(equipments, sheet_id, auth_file):
 
 
 if __name__ == "__main__":
+    session = None
+    we_started_sap = False
     try:
-        print("正在清理可能存在的 SAP 进程...")
-        close_sap()
-        time.sleep(2)
-        
-        print("正在启动 SAP GUI...")
-        start_sap()
-        
-        print("等待 SAP 会话就绪...")
-        session = wait_for_sap_session()
+        print("正在准备 SAP 会话...")
+        we_started_sap = ensure_sap_running()   # SAP 没开就启动，开着就复用
+        session = open_session()                # 开一个自己的窗口
         
         today = datetime.date.today()
         first_day = today.replace(day=1)
@@ -491,14 +488,12 @@ if __name__ == "__main__":
         
         if not ih08_file:
             print("❌ IH08 执行失败，终止程序")
-            close_sap()
             sys.exit(1)
         
         ip18_file = get_equipments_with_plan_ip18(session, year_month, ih08_file)
         
         if not ip18_file:
             print("❌ IP18 执行失败，终止程序")
-            close_sap()
             sys.exit(1)
         
         data = process_critical_equipment_data(ih08_file, ip18_file, year_month)
@@ -516,7 +511,6 @@ if __name__ == "__main__":
                 worksheet_name=WORKSHEET_NAME,
                 auth_file=SERVICE_ACCOUNT_FILE
             ):
-                close_sap()
                 sys.exit(1)
 
             if data['equipments_without_plan']:
@@ -526,17 +520,16 @@ if __name__ == "__main__":
                     sheet_id=GOOGLE_SHEET_ID,
                     auth_file=SERVICE_ACCOUNT_FILE
                 ):
-                    close_sap()
                     sys.exit(1)
             else:
                 print("\n✅ 所有A类设备均有保养计划")
         else:
             print("❌ 数据处理失败")
-            close_sap()
             sys.exit(1)
         
-        print("\nSAP 操作完成，正在关闭 SAP...")
-        close_sap()
+        print("\nSAP 操作完成，正在关闭本次会话...")
+        close_session(session)
+        session = None
         
         print("\n" + "="*50)
         print("✅ 所有操作已完成！")
@@ -546,7 +539,10 @@ if __name__ == "__main__":
         print(f"❌ 程序执行过程中发生错误: {e}")
         import traceback
         traceback.print_exc()
-        close_sap()
         sys.exit(1)
     finally:
+        close_session(session)                  # 关掉自己的窗口
+        if we_started_sap:
+            print("\n正在关闭本次启动的 SAP...")
+            close_sap()                         # 只关自己启动的那个
         print("\n执行完毕。")

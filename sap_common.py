@@ -151,6 +151,7 @@ def ensure_sap_running():
     """
     try:
         win32com.client.GetObject("SAPGUI")
+        print("检测到 SAP 已在运行，直接使用（不会动别人的会话）。")
         return False
     except Exception:
         print("没有检测到正在运行的 SAP，正在启动...")

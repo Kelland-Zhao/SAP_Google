@@ -15,7 +15,8 @@ from google.auth.transport.requests import AuthorizedSession
 # 公共部分在仓库根的 sap_common.py，不在本脚本所在目录。
 # 先把仓库根加进 sys.path，这样单个脚本仍然可以独立运行。
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from sap_common import get_resource_path, start_sap, wait_for_sap_session, close_sap
+from sap_common import (get_resource_path, ensure_sap_running,
+                        open_session, close_session, close_sap)
 
 # --- 文件路径配置 ---
 OUTPUT_DIR = r"O:\My Drive\071 - SAP 数据\StockTurnover"
@@ -196,8 +197,11 @@ def run_sap_automation(session, start_period, end_period, sap_compatible_dir, fi
 
 
 # --- 主执行函数 ---
-def main_automation_process():
-    """主执行函数：计算期间，启动 SAP，执行操作，并转换文件格式并写入 Google Sheet"""
+def main_automation_process(session):
+    """主执行函数：计算期间，执行 SAP 操作，并转换文件格式并写入 Google Sheet。
+
+    会话由 __main__ 通过 sap_common.open_session() 取得后传入。
+    """
 
     # 1. 计算期间
     today = datetime.date.today()
@@ -211,14 +215,7 @@ def main_automation_process():
 
     print(f"动态期间计算成功: 从 {start_period} 到 {end_period}")
 
-    # 3. 启动 SAP
-    start_sap()
-
-    # 4. 等待 SAP 会话就绪
-    print("等待 SAP 会话就绪...")
-    session = wait_for_sap_session()
-
-    # 5. 执行 SAP 自动化操作
+    # 3. 执行 SAP 自动化操作（会话由 __main__ 传入）
     run_sap_automation(session, start_period, end_period, sap_compatible_dir, file_name_only)
 
     # ***************************************************************
@@ -268,18 +265,24 @@ def main_automation_process():
     else:
         print("❌ 无法从 SAP 导出的 TXT 文件中提取数据，跳过后续操作。")
 
-    # 6. 关闭 SAP 进程
-    close_sap()
-
-
 if __name__ == "__main__":
-    close_sap()
+    session = None
+    we_started_sap = False
     try:
-        main_automation_process()
+        print("正在准备 SAP 会话...")
+        we_started_sap = ensure_sap_running()   # SAP 没开就启动，开着就复用
+        session = open_session()                # 开一个自己的窗口
+
+        main_automation_process(session)
+
     except Exception as e:
         print(f"❌ 程序执行过程中发生错误: {e}")
         import traceback
         traceback.print_exc()
-        close_sap()
         sys.exit(1)
-    print("\n程序执行完毕 / Program completed.")
+    finally:
+        close_session(session)                  # 关掉自己的窗口
+        if we_started_sap:
+            print("\n正在关闭本次启动的 SAP...")
+            close_sap()                         # 只关自己启动的那个
+        print("\n程序执行完毕 / Program completed.")

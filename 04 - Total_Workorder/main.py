@@ -29,7 +29,8 @@ import gspread
 # 公共部分在仓库根的 sap_common.py，不在本脚本所在目录。
 # 先把仓库根加进 sys.path，这样单个脚本仍然可以独立运行。
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from sap_common import get_resource_path, start_sap, wait_for_sap_session, close_sap
+from sap_common import (get_resource_path, ensure_sap_running,
+                        open_session, close_session, close_sap)
 
 # --- 核心配置 ---
 # 文件路径配置
@@ -408,19 +409,12 @@ def write_to_google_sheet(excel_file_path, sheet_url, worksheet_name, auth_file,
 
 
 if __name__ == "__main__":
+    session = None
+    we_started_sap = False
     try:
-        # 1. 清理可能存在的 SAP 进程
-        print("正在清理可能存在的 SAP 进程...")
-        close_sap()
-        time.sleep(2)
-        
-        # 2. 自动登录 SAP
-        print("正在启动 SAP GUI...")
-        start_sap()
-        
-        # 3. 等待 SAP 会话就绪
-        print("等待 SAP 会话就绪...")
-        session = wait_for_sap_session()
+        print("正在准备 SAP 会话...")
+        we_started_sap = ensure_sap_running()   # SAP 没开就启动，开着就复用
+        session = open_session()                # 开一个自己的窗口
 
         # 4. 执行 SAP 操作 - 获取工单数据
         print("开始执行 SAP 操作...")
@@ -441,13 +435,12 @@ if __name__ == "__main__":
             auth_file=SERVICE_ACCOUNT_FILE,
             start_row=2
         ):
-            close_sap()
             sys.exit(1)
         
         # 6. 操作完成后关闭 SAP
-        print("\nSAP 操作完成，正在关闭 SAP...")
-        time.sleep(2)
-        close_sap()
+        print("\nSAP 操作完成，正在关闭本次会话...")
+        close_session(session)
+        session = None
         
         print("\n" + "="*50)
         print("✅ 所有操作已完成！")
@@ -458,8 +451,10 @@ if __name__ == "__main__":
         print(f"❌ 程序执行过程中发生错误: {e}")
         import traceback
         traceback.print_exc()
-        # 确保出错时也关闭 SAP
-        close_sap()
-        print("\n执行完毕。")
         sys.exit(1)
-
+    finally:
+        close_session(session)                  # 关掉自己的窗口
+        if we_started_sap:
+            print("\n正在关闭本次启动的 SAP...")
+            close_sap()                         # 只关自己启动的那个
+        print("\n执行完毕。")
