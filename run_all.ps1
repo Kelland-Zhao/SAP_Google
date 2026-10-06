@@ -3,6 +3,11 @@ $Python = "C:\Users\kelland zhao\scoop\apps\python311\current\python.exe"
 $Root = "C:\Users\kelland zhao\Projects\SAP_Google_AutoRun"
 $LogFile = Join-Path $Root "run_all.log"
 
+# 单个脚本的最长运行时间。正常情况下每个脚本 1~3 分钟，10 分钟足够；
+# 超过就说明卡住了（例如 SAP 界面冻结），强制结束。
+$TimeoutMin = 10
+$TimeoutMs = $TimeoutMin * 60 * 1000
+
 # 当前代码版本 —— 写进日志，便于事后核对本次跑的是哪一版
 $GitRev = "unknown"
 if (Get-Command git -ErrorAction SilentlyContinue) {
@@ -64,8 +69,25 @@ foreach ($Project in $Projects) {
     Write-Host $Msg
     $Msg | Out-File -Append $LogFile -Encoding UTF8
     
-    $Process = Start-Process -FilePath $Python -ArgumentList "`"$MainPy`"" -WorkingDirectory $ProjectPath -Wait -NoNewWindow -PassThru
-    
+    # 给每个脚本设超时，避免某个脚本卡死（例如 SAP 界面冻结）
+    # 导致无人值守的定时任务永远挂着。
+    $Process = Start-Process -FilePath $Python -ArgumentList "`"$MainPy`"" -WorkingDirectory $ProjectPath -NoNewWindow -PassThru
+
+    if (-not $Process.WaitForExit($TimeoutMs)) {
+        $Process.Kill()
+        $Process.WaitForExit()
+        # SAP 很可能已经冻结，一并杀掉 —— 否则下一个脚本会连到同一个冻结的
+        # SAP 上，继续卡死。杀掉它，下个脚本就会自己启动一个干净的。
+        taskkill /f /im saplogon.exe 2>$null | Out-Null
+        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 超时 $Project (超过 $TimeoutMin 分钟，已强制结束并重启 SAP)"
+        Write-Host $Msg -ForegroundColor Red
+        $Msg | Out-File -Append $LogFile -Encoding UTF8
+        $Failed++
+        $FailedList += $Project
+        Write-Host ""
+        continue
+    }
+
     if ($Process.ExitCode -eq 0) {
         $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 完成 $Project"
         Write-Host $Msg -ForegroundColor Green
