@@ -34,6 +34,17 @@ Write-Host "========================================"
 Write-Host ""
 "[$Timestamp] ========== 开始执行 (代码版本: $GitRev) ==========" | Out-File -Append $LogFile -Encoding UTF8
 
+# ── 启动 SAP（只启动一次）────────────────────────────────────────────────
+# 各脚本检测到 SAP 已在运行就不再启停，改成在自己的新会话里干活。
+# 这一步省掉原先"每个脚本重启一次 SAP"的 7 次开销。
+Write-Host "  正在启动 SAP（各脚本将复用，不再逐个重启）..."
+& $Python (Join-Path $Root "sap_common.py") start
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  ❌ SAP 启动失败，本次运行终止（否则 7 个脚本会各等 60 秒再全部失败）。" -ForegroundColor Red
+    "[$Timestamp] SAP 启动失败，运行终止" | Out-File -Append $LogFile -Encoding UTF8
+    exit 1
+}
+
 $Index = 0
 foreach ($Project in $Projects) {
     $Index++
@@ -68,6 +79,10 @@ foreach ($Project in $Projects) {
     $Msg | Out-File -Append $LogFile -Encoding UTF8
     Write-Host ""
 }
+
+# ── 关闭 SAP（本编排器启动的那一个）──────────────────────────────────────
+Write-Host "  正在关闭 SAP..."
+& $Python (Join-Path $Root "sap_common.py") close
 
 $EndTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-Host "========================================"
