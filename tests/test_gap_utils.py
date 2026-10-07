@@ -90,6 +90,13 @@ class FormatReferenceDateTests(unittest.TestCase):
     def test_parses_a_year_first_dotted_string(self):
         self.assertEqual(format_reference_date("2026.10.15"), "2026-10-15")
 
+    def test_parses_the_compact_format_the_export_actually_uses(self):
+        # 实测：IW39 导出的「参考日期」是 20260926 这种 8 位无分隔写法
+        self.assertEqual(format_reference_date("20260926"), "2026-09-26")
+
+    def test_parses_a_compact_cell_that_excel_stored_as_a_number(self):
+        self.assertEqual(format_reference_date(20260926), "2026-09-26")
+
     def test_returns_empty_for_a_blank_cell(self):
         self.assertEqual(format_reference_date(None), "")
         self.assertEqual(format_reference_date("   "), "")

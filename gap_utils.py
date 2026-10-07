@@ -24,8 +24,15 @@ WRITE_TIME_COLUMN_INDEX = GAP_HEADERS.index("写入时间")
 MONTH_COLUMN_INDEX = GAP_HEADERS.index("月份")
 
 # 「参考日期」的可能写法。分隔符决定顺序：斜杠按月在前（脚本给 SAP 填的就是
-# %m/%d/%Y），点号按日在先（欧洲写法）。两种都认不出来就原样返回，不丢数据。
-_DATE_FORMATS = ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d", "%m/%d/%Y", "%d.%m.%Y")
+# %m/%d/%Y），点号按日在先（欧洲写法）。
+#
+# %Y%m%d 放第 4 位：这是实测出来的 —— IW39 导出的「参考日期」就是 20260926
+# 这种 8 位无分隔写法（Excel 里可能是文本也可能是数字，strptime 两种都能吃）。
+# 它带分隔符的写法互不冲突，所以位置不敏感。
+#
+# 全认不出来就原样返回，不丢数据。
+_DATE_FORMATS = ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d", "%Y%m%d",
+                 "%m/%d/%Y", "%d.%m.%Y")
 
 
 class MissingColumnsError(ValueError):
