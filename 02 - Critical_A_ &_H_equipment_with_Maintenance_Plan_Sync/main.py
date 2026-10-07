@@ -28,6 +28,7 @@ WORKSHEET_NAME = 'MasterData'
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sap_common import (get_resource_path, ensure_sap_running,
                         open_session, close_session, close_sap)
+from month_utils import months_to_sync, should_upload_month_data
 
 SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 
@@ -327,6 +328,8 @@ def process_critical_equipment_data(ih08_file, ip18_file, year_month):
         wb_ih08.close()
         total_equipments = len(equipments_ih08)
         print(f"IH08 - A 级关键设备总数（去重）: {total_equipments}")
+        if total_equipments == 0:
+            return None
         
         wb_ip18 = openpyxl.load_workbook(ip18_file)
         ws_ip18 = wb_ip18.active
@@ -477,59 +480,64 @@ if __name__ == "__main__":
         we_started_sap = ensure_sap_running()   # SAP 没开就启动，开着就复用
         session = open_session()                # 开一个自己的窗口
         
-        today = datetime.date.today()
-        first_day = today.replace(day=1)
-        last_day = today.replace(day=calendar.monthrange(today.year, today.month)[1])
-        
-        first_day_str = first_day.strftime("%m/%d/%Y")
-        last_day_str = last_day.strftime("%m/%d/%Y")
-        year_month = today.strftime("%Y%m")
-        
-        print(f"\n日期范围: {first_day_str} - {last_day_str}")
-        print(f"月份: {year_month}")
-        
-        ih08_file = get_a_equipments_ih08(session, year_month, first_day_str, last_day_str)
-        
-        if not ih08_file:
-            print("❌ IH08 执行失败，终止程序")
-            sys.exit(1)
-        
-        ip18_file = get_equipments_with_plan_ip18(session, year_month, ih08_file)
-        
-        if not ip18_file:
-            print("❌ IP18 执行失败，终止程序")
-            sys.exit(1)
-        
-        data = process_critical_equipment_data(ih08_file, ip18_file, year_month)
-        
-        if data:
-            print(f"\n统计结果：")
-            print(f"  - 月份: {data['month']}")
-            print(f"  - 有维护计划的设备数: {data['equipments_with_plan']}")
-            print(f"  - A 级关键设备总数: {data['total_equipments']}")
-            print(f"  - 百分比: {data['percentage']}")
-            
-            if not upload_to_google_sheets(
-                data=data,
-                sheet_id=GOOGLE_SHEET_ID,
-                worksheet_name=WORKSHEET_NAME,
-                auth_file=SERVICE_ACCOUNT_FILE
-            ):
+        months = months_to_sync(datetime.date.today())
+        print(f"\n待同步月份: {', '.join(months)}")
+
+        for year_month in months:
+            year = int(year_month[:4])
+            month = int(year_month[4:6])
+            first_day = datetime.date(year, month, 1)
+            last_day = datetime.date(year, month, calendar.monthrange(year, month)[1])
+            first_day_str = first_day.strftime("%m/%d/%Y")
+            last_day_str = last_day.strftime("%m/%d/%Y")
+
+            print("\n" + "="*50)
+            print(f"处理月份: {year_month}")
+            print(f"日期范围: {first_day_str} - {last_day_str}")
+            print("="*50)
+
+            ih08_file = get_a_equipments_ih08(session, year_month, first_day_str, last_day_str)
+
+            if not ih08_file:
+                print(f"❌ {year_month} IH08 执行失败，终止程序")
                 sys.exit(1)
 
-            if data['equipments_without_plan']:
-                print(f"\n无保养计划的A类设备数量: {len(data['equipments_without_plan'])}")
-                if not upload_no_plan_equipments(
-                    equipments=data['equipments_without_plan'],
+            ip18_file = get_equipments_with_plan_ip18(session, year_month, ih08_file)
+
+            if not ip18_file:
+                print(f"❌ {year_month} IP18 执行失败，终止程序")
+                sys.exit(1)
+
+            data = process_critical_equipment_data(ih08_file, ip18_file, year_month)
+
+            if data:
+                print(f"\n统计结果：")
+                print(f"  - 月份: {data['month']}")
+                print(f"  - 有维护计划的设备数: {data['equipments_with_plan']}")
+                print(f"  - A 级关键设备总数: {data['total_equipments']}")
+                print(f"  - 百分比: {data['percentage']}")
+
+                if not upload_to_google_sheets(
+                    data=data,
                     sheet_id=GOOGLE_SHEET_ID,
+                    worksheet_name=WORKSHEET_NAME,
                     auth_file=SERVICE_ACCOUNT_FILE
                 ):
                     sys.exit(1)
+
+                if data['equipments_without_plan']:
+                    print(f"\n无保养计划的A类设备数量: {len(data['equipments_without_plan'])}")
+                    if not upload_no_plan_equipments(
+                        equipments=data['equipments_without_plan'],
+                        sheet_id=GOOGLE_SHEET_ID,
+                        auth_file=SERVICE_ACCOUNT_FILE
+                    ):
+                        sys.exit(1)
+                else:
+                    print("\n✅ 所有A类设备均有保养计划")
             else:
-                print("\n✅ 所有A类设备均有保养计划")
-        else:
-            print("❌ 数据处理失败")
-            sys.exit(1)
+                if should_upload_month_data(None, year_month, months[-1]) is False:
+                    print(f"⚠️ 当前月份 {year_month} 暂无 A 级关键设备数据，保留原有数据。")
         
         print("\nSAP 操作完成，正在关闭本次会话...")
         close_session(session)

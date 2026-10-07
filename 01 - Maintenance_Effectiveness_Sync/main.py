@@ -19,6 +19,7 @@ WORKSHEET_NAME = 'MasterData'
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sap_common import (get_resource_path, ensure_sap_running,
                         open_session, close_session, close_sap)
+from month_utils import months_to_sync, should_upload_month_data
 
 SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 
@@ -165,15 +166,15 @@ def is_empty_result(session):
     return False
 
 
-def get_maintenance_effectiveness_iw47(session):
-    today = datetime.date.today()
-    first_day = today.replace(day=1)
-    last_day = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+def get_maintenance_effectiveness_iw47(session, year_month):
+    year = int(year_month[:4])
+    month = int(year_month[4:6])
+    first_day = datetime.date(year, month, 1)
+    last_day = datetime.date(year, month, calendar.monthrange(year, month)[1])
     
     first_day_str = first_day.strftime("%m/%d/%Y")
     last_day_str = last_day.strftime("%m/%d/%Y")
     
-    year_month = today.strftime("%Y%m")
     output_filename = f"{year_month}_Maintenance_Effectiveness.xlsx"
     output_file_path = os.path.join(OUTPUT_DIR, output_filename)
     
@@ -224,7 +225,7 @@ def get_maintenance_effectiveness_iw47(session):
         
         if is_empty_result(session):
             print(f"⚠️ IW47 在 {first_day_str} - {last_day_str} 区间内没有符合条件的确认数据，本次跳过导出与上传。")
-            return
+            return False
         
         # 导出数据（列表菜单 > 导出 > 电子表格）
         session.findById("wnd[0]/mbar/menu[0]/menu[4]").select()
@@ -300,6 +301,7 @@ def get_maintenance_effectiveness_iw47(session):
             raise
         
         time.sleep(2)
+        return True
         
     except Exception as e:
         print(f"❌ 执行 SAP 操作时发生错误: {e}")
@@ -316,8 +318,16 @@ if __name__ == "__main__":
         we_started_sap = ensure_sap_running()   # SAP 没开就启动，开着就复用
         session = open_session()                # 开一个自己的窗口
 
-        print("开始执行 IW47 维护有效性数据提取...")
-        get_maintenance_effectiveness_iw47(session)
+        months = months_to_sync(datetime.date.today())
+        print(f"开始执行 IW47 维护有效性数据提取，待同步月份: {', '.join(months)}")
+        for year_month in months:
+            print("\n" + "="*50)
+            print(f"处理月份: {year_month}")
+            print("="*50)
+            result = get_maintenance_effectiveness_iw47(session, year_month)
+            if result is False:
+                if should_upload_month_data(None, year_month, months[-1]) is False:
+                    print(f"⚠️ 当前月份 {year_month} 暂无符合条件的确认数据，保留原有数据。")
         
         print("\nSAP 操作完成，正在关闭本次会话...")
         close_session(session)

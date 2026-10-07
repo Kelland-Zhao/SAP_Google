@@ -26,6 +26,7 @@ WORKSHEET_NAME = 'MasterData'
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sap_common import (get_resource_path, ensure_sap_running,
                         open_session, close_session, close_sap)
+from month_utils import months_to_sync, should_upload_month_data
 
 # 注意：get_resource_path 的基准目录是仓库根，这里不要写 '../'
 SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
@@ -54,7 +55,10 @@ def process_maintenance_data(excel_file_path, year_month):
     
     wb.close()
     
-    adherence = round((executed_count / total_planned), 4) if total_planned > 0 else 0
+    if total_planned == 0:
+        return None
+
+    adherence = round((executed_count / total_planned), 4)
     
     return {
         'month': year_month,
@@ -126,17 +130,17 @@ def upload_to_google_sheets(data, sheet_id, worksheet_name, auth_file):
         return False
 
 
-def get_maintenance_plan_iw39(session):
-    today = datetime.date.today()
-    first_day = today.replace(day=1)
-    last_day = today.replace(day=calendar.monthrange(today.year, today.month)[1])
+def get_maintenance_plan_iw39(session, year_month):
+    year = int(year_month[:4])
+    month = int(year_month[4:6])
+    first_day = datetime.date(year, month, 1)
+    last_day = datetime.date(year, month, calendar.monthrange(year, month)[1])
     
     first_day_str = first_day.strftime("%m/%d/%Y")
     last_day_str = last_day.strftime("%m/%d/%Y")
 
     print(f"\n日期范围: {first_day_str} - {last_day_str}")
 
-    year_month = today.strftime("%Y%m")
     output_filename = f"{year_month}_Maintenance_Plan_Adherence.xlsx"
     output_file_path = os.path.join(OUTPUT_DIR, output_filename)
     
@@ -253,6 +257,10 @@ def get_maintenance_plan_iw39(session):
                 print("="*50)
                 
                 data = process_maintenance_data(output_file_path, year_month)
+                if data is None:
+                    print(f"⚠️ IW39 在 {first_day_str} - {last_day_str} 区间内没有计划工单，本次跳过导出与上传。")
+                    return False
+
                 print(f"\n统计结果：")
                 print(f"  - 月份: {data['month']}")
                 print(f"  - 已执行订单数: {data['executed']}")
@@ -276,6 +284,7 @@ def get_maintenance_plan_iw39(session):
             raise
         
         time.sleep(2)
+        return True
         
     except Exception as e:
         print(f"❌ 执行 SAP 操作时发生错误: {e}")
@@ -292,8 +301,16 @@ if __name__ == "__main__":
         we_started_sap = ensure_sap_running()   # SAP 没开就启动，开着就复用
         session = open_session()                # 开一个自己的窗口
 
-        print("开始执行 SAP 操作...")
-        get_maintenance_plan_iw39(session)
+        months = months_to_sync(datetime.date.today())
+        print(f"开始执行 SAP 操作，待同步月份: {', '.join(months)}")
+        for year_month in months:
+            print("\n" + "="*50)
+            print(f"处理月份: {year_month}")
+            print("="*50)
+            result = get_maintenance_plan_iw39(session, year_month)
+            if result is False:
+                if should_upload_month_data(None, year_month, months[-1]) is False:
+                    print(f"⚠️ 当前月份 {year_month} 暂无计划工单，保留原有数据。")
 
         print("\n" + "="*50)
         print("✅ 所有操作已完成！")
