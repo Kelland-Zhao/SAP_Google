@@ -233,8 +233,23 @@ def run_iw39_for_month(session, year_month):
 
 
 if __name__ == "__main__":
-    months = ["202601", "202602", "202603", "202604", "202605", "202606", "202607"]
+    # 用法：
+    #   python batch_update.py                回填下面这串默认月份
+    #   python batch_update.py 202608         只回填 202608
+    #   python batch_update.py 202607 202608  回填指定的多个月份
+    #
+    # 走命令行参数是为了避免"就地改月份列表"——那样会在运行机上留下
+    # 未提交的改动，下次 git pull 可能冲突。
+    months = sys.argv[1:] or ["202601", "202602", "202603", "202604", "202605", "202606", "202607"]
 
+    # 月份必须形如 YYYYMM。写错的话上传时会匹配不到已有行而追加一条垃圾行，
+    # 所以先拦下来。
+    bad = [m for m in months if len(m) != 6 or not m.isdigit()]
+    if bad:
+        print(f"❌ 月份格式应为 YYYYMM（如 202608），收到: {', '.join(bad)}")
+        sys.exit(2)
+
+    print(f"待回填月份: {', '.join(months)}")
     print("正在清理可能存在的 SAP 进程...")
     close_SAP()
     time.sleep(2)
