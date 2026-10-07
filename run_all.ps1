@@ -39,9 +39,17 @@ Write-Host ""
 # 这一步省掉原先"每个脚本重启一次 SAP"的 7 次开销。
 Write-Host "  正在启动 SAP（各脚本将复用，不再逐个重启）..."
 & $Python (Join-Path $Root "sap_common.py") start
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "  ❌ SAP 启动失败，本次运行终止（否则 7 个脚本会各等 60 秒再全部失败）。" -ForegroundColor Red
-    "[$Timestamp] SAP 启动失败，运行终止" | Out-File -Append $LogFile -Encoding UTF8
+$SapExit = $LASTEXITCODE
+if ($SapExit -eq 0) {
+    # SAP 由本次启动 → 收尾时应当关掉
+    $SapWasAlreadyRunning = $false
+} elseif ($SapExit -eq 3) {
+    # SAP 本来就在运行（不是我们启动的）→ 收尾时不要动它
+    $SapWasAlreadyRunning = $true
+} else {
+    Write-Host "  ❌ SAP 启动失败（退出码 $SapExit），本次运行终止。" -ForegroundColor Red
+    Write-Host "     （不终止的话 7 个脚本会各等 60 秒再全部失败）" -ForegroundColor Red
+    "[$Timestamp] SAP 启动失败（退出码 $SapExit），运行终止" | Out-File -Append $LogFile -Encoding UTF8
     exit 1
 }
 
@@ -82,9 +90,13 @@ foreach ($Project in $Projects) {
     Write-Host ""
 }
 
-# ── 关闭 SAP（本编排器启动的那一个）──────────────────────────────────────
-Write-Host "  正在关闭 SAP..."
-& $Python (Join-Path $Root "sap_common.py") close
+# ── 关闭 SAP（只关本编排器自己启动的那一个）────────────────────────────
+if ($SapWasAlreadyRunning) {
+    Write-Host "  SAP 是运行前就开着的，保持不动。"
+} else {
+    Write-Host "  正在关闭 SAP..."
+    & $Python (Join-Path $Root "sap_common.py") close
+}
 
 $EndTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-Host "========================================"

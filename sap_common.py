@@ -209,9 +209,14 @@ if __name__ == "__main__":
     # 供 run_all.ps1 调用，让编排器负责 SAP 的启停：
     #     python sap_common.py start    循环前启动一次
     #     python sap_common.py close    循环后关闭一次
+    #
+    # start 的退出码有意义，供 run_all.ps1 判断收尾时该不该关 SAP：
+    #     0 = SAP 由本次启动   → 收尾时应当关掉
+    #     3 = SAP 本来就在运行 → 收尾时不要动它
+    #     1 = 启动失败
     _cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if _cmd == "start":
-        ensure_sap_running()
+        sys.exit(0 if ensure_sap_running() else 3)
     elif _cmd == "close":
         close_sap()
     else:
