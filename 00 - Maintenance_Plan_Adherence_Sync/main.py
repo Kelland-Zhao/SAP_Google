@@ -20,6 +20,8 @@ SAP_DEFAULT_DOWNLOAD_DIR = r"O:\My Drive\071 - SAP 数据\Maintenance_Plan_Adher
 
 GOOGLE_SHEET_ID = '1dWWNiIlRqnXDeDiY4MS_cPSfseDb0g1NHK1dC1HPSnY'
 WORKSHEET_NAME = 'MasterData'
+# 未执行（系统状态不含 CNF）的工单明细，同一张 spreadsheet 里的另一张表
+GAP_WORKSHEET_NAME = 'Maintenance_Plan_Adherence_Gap'
 
 # 公共部分在仓库根的 sap_common.py，不在本脚本所在目录。
 # 先把仓库根加进 sys.path，这样单个脚本仍然可以独立运行。
@@ -27,6 +29,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sap_common import (get_resource_path, ensure_sap_running,
                         open_session, close_session, close_sap)
 from month_utils import months_to_sync, should_upload_month_data
+from gap_utils import (GAP_HEADERS, MissingColumnsError, build_gap_rows,
+                       resolve_columns, split_rows_by_month)
 
 # 注意：get_resource_path 的基准目录是仓库根，这里不要写 '../'
 SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
@@ -35,7 +39,13 @@ SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 def process_maintenance_data(excel_file_path, year_month):
     wb = openpyxl.load_workbook(excel_file_path)
     ws = wb.active
-    
+
+    # Gap 表要用到整行，趁这次打开一次读完 —— 不再重复打开这个文件。
+    # 列的位置由 gap_utils.resolve_columns 按表头名去找，不写死列号。
+    export_header = list(next(ws.iter_rows(min_row=1, max_row=1, values_only=True), ()))
+    export_rows = [list(row) for row in ws.iter_rows(min_row=2, values_only=True)]
+
+    # ↓ 下面这段是 MasterData 的统计逻辑，仍然读死第 8 列，行为不变
     system_status_col = 8
     header_row = 1
     
@@ -64,7 +74,9 @@ def process_maintenance_data(excel_file_path, year_month):
         'month': year_month,
         'executed': executed_count,
         'planned': total_planned,
-        'adherence_pct': adherence
+        'adherence_pct': adherence,
+        'export_header': export_header,
+        'export_rows': export_rows,
     }
 
 
@@ -128,6 +140,83 @@ def upload_to_google_sheets(data, sheet_id, worksheet_name, auth_file):
         import traceback
         traceback.print_exc()
         return False
+
+
+def upload_gap_rows(export_header, export_rows, year_month, sheet_id, auth_file):
+    """把【系统状态】不含 CNF 的工单写进 Maintenance_Plan_Adherence_Gap。
+
+    刷新策略：该月旧行先删、再用最新结果重写，但「写入时间」沿用该月**首次**
+    写入的时刻 —— 数据每次运行都刷新，时间戳却停在该月第一次写下的那天。
+
+    两种失败要区别对待：
+      * 导出文件里找不到列（布局变了）→ 只警告并跳过，MasterData 不受影响
+      * 写 Gap 表本身失败（网络/权限/表被删）→ 抛错，让脚本退出码 1、下次重跑
+    """
+    try:
+        columns = resolve_columns(export_header)
+    except MissingColumnsError as e:
+        print(f"⚠️ 警告: 跳过 {year_month} 的 Gap 写入 —— {e}")
+        return
+
+    print(f"\n正在写入 {GAP_WORKSHEET_NAME}（月份 {year_month}）...")
+
+    try:
+        session = requests.Session()
+        session.verify = False
+
+        credentials = service_account.Credentials.from_service_account_file(
+            auth_file,
+            scopes=['https://www.googleapis.com/auth/spreadsheets']
+        )
+        authed_session = AuthorizedSession(credentials)
+        authed_session.verify = False
+
+        gc = gspread.Client(auth=credentials, session=authed_session)
+        sh = gc.open_by_key(sheet_id)
+
+        try:
+            worksheet = sh.worksheet(GAP_WORKSHEET_NAME)
+        except gspread.exceptions.WorksheetNotFound:
+            worksheet = sh.add_worksheet(
+                title=GAP_WORKSHEET_NAME, rows="1000", cols=str(len(GAP_HEADERS))
+            )
+            print(f"  已新建工作表 '{GAP_WORKSHEET_NAME}'")
+
+        all_rows = worksheet.get_all_values()
+        if not all_rows:
+            worksheet.update(range_name='A1', values=[GAP_HEADERS],
+                             value_input_option='RAW')
+            print("  已写入表头")
+
+        keep_rows, first_write_time = split_rows_by_month(all_rows, year_month)
+        if first_write_time:
+            write_time = first_write_time
+            print(f"  写入时间沿用该月首次写入的 {write_time}")
+        else:
+            write_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            print(f"  该月首次写入，写入时间记为 {write_time}")
+
+        gap_rows = build_gap_rows(export_rows, columns, write_time, year_month)
+
+        # 整表重写「保留的行」，再追加这个月的新行 —— 同 02 的
+        # upload_no_plan_equipments，重跑不会堆重复行。
+        dropped = len(all_rows) - len(keep_rows)
+        if dropped > 0:
+            worksheet.clear()
+            if keep_rows:
+                worksheet.update(keep_rows, 'A1', value_input_option='RAW')
+            print(f"  已清除 {year_month} 的旧数据 {dropped} 行")
+
+        if gap_rows:
+            worksheet.append_rows(gap_rows, value_input_option='RAW')
+
+        print(f"✅ 已写入 {len(gap_rows)} 行（系统状态不含 CNF 的工单）")
+
+    except Exception as e:
+        print(f"❌ {GAP_WORKSHEET_NAME} 写入失败: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def get_maintenance_plan_iw39(session, year_month):
@@ -284,7 +373,17 @@ def get_maintenance_plan_iw39(session, year_month):
             import traceback
             traceback.print_exc()
             raise
-        
+
+        # MasterData 写完之后再写 Gap 明细。缺列只警告跳过，写库失败则抛错
+        # 让退出码变 1（MasterData 重写是幂等的，下次重跑没有副作用）。
+        upload_gap_rows(
+            export_header=data['export_header'],
+            export_rows=data['export_rows'],
+            year_month=year_month,
+            sheet_id=GOOGLE_SHEET_ID,
+            auth_file=SERVICE_ACCOUNT_FILE,
+        )
+
         time.sleep(2)
         return True
         

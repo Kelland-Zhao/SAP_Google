@@ -100,7 +100,7 @@ python "03 - Safety_Stock_ZSE16\main.py" ; "退出码 = $LASTEXITCODE"
 
 | 目录 | SAP 事务码 | 产出 | 写入的工作表 |
 |---|---|---|---|
-| `00 - Maintenance_Plan_Adherence_Sync` | IW39 | 维护计划遵守率 | `MasterData` |
+| `00 - Maintenance_Plan_Adherence_Sync` | IW39 | 维护计划遵守率 + 未执行工单明细 | `MasterData`、`Maintenance_Plan_Adherence_Gap` |
 | `01 - Maintenance_Effectiveness_Sync` | IW47 | 维护有效性 | `MasterData` |
 | `02 - Critical_A_ &_H_equipment_with_Maintenance_Plan_Sync` | IH08 → IP18 | A 级关键设备中有维护计划的比例 + 无计划设备清单 | `MasterData`、`无保养计划A类设备` |
 | `03 - Safety_Stock_ZSE16` | ZSE16 | 安全库存全量 | `安全库存数据` |
@@ -109,6 +109,18 @@ python "03 - Safety_Stock_ZSE16\main.py" ; "退出码 = $LASTEXITCODE"
 | `07 - Inventory_MB52` | MB52 | 库存 | `MasterData` |
 
 `00`、`01`、`02` 写入**同一张** Google 表格的 `MasterData` 工作表，各自占不同的列区间。
+
+### `00` 的附加产出：`Maintenance_Plan_Adherence_Gap`
+
+`00` 还会把**未执行**（【系统状态】不含 CNF，且状态非空）的工单明细写进同一张 spreadsheet 的 `Maintenance_Plan_Adherence_Gap` 工作表。12 列：前 10 列取自 IW39 导出（参考日期、通知、订单、功能位置、设备、描述、成本中心、系统状态、ABC 标识、订单类型），后 2 列 `写入时间`、`月份` 由脚本生成。列的位置按**表头名**去找，不写死列号。
+
+- **数据每次都刷新，写入时间锁在该月首次写入的时刻** —— 所以每天跑，这一列也不会被刷成新时间
+- 刷新只动正在处理的月份：其余月份的历史行原样保留（靠最后一列 `月份` 区分）
+- 某月没有未执行工单时，该月的行会被清空（连同上一次记下的写入时间）；之后若又出现，会记一个新的时间
+- 写入用 `RAW` 方式：所有格子按文本原样落库，带前导零的订单号/设备号不会被 Sheets 当数字吃掉
+- 导出文件里找不到上面那 10 个表头时：**只打警告并跳过 Gap 写入**，`MasterData` 照常更新、退出码 0（Gap 会停更，直到你注意到那行警告）。而写 Gap 表本身失败（网络/权限/表被删）则退出码 1，下次重跑
+
+> 逻辑（找列、日期归一化、按月拆行）放在仓库根的 `gap_utils.py`，不 import `win32com`，所以它的单元测试在任何机器上都能跑：`python -m unittest discover -s tests`。
 
 `03` 和 `07` 写入**另一张**表格：`03` 用 `安全库存数据` 工作表，`07` 用 `MasterData` 工作表。
 
