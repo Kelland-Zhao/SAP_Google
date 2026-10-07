@@ -48,7 +48,9 @@ def get_a_equipments_ih08(session, year_month, first_day_str, last_day_str):
     
     try:
         session.findById("wnd[0]").maximize()
-        session.findById("wnd[0]/tbar[0]/okcd").text = "IH08"
+        # 必须带 /n：跨月循环第二轮时，事务码若不带 /n，
+        # SAP 会停在上一轮的结果列表而不回到选择界面，导致下面找不到 ctxtDATUV 控件。
+        session.findById("wnd[0]/tbar[0]/okcd").text = "/nIH08"
         session.findById("wnd[0]").sendVKey(0)
         time.sleep(1)
         

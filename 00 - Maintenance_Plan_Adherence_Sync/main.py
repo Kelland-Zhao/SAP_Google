@@ -155,7 +155,9 @@ def get_maintenance_plan_iw39(session, year_month):
 
     try:
         session.findById("wnd[0]").maximize()
-        session.findById("wnd[0]/tbar[0]/okcd").text = "IW39"
+        # 必须带 /n：跨月循环第二轮时，事务码若不带 /n，
+        # SAP 会停在上一轮的结果列表而不回到选择界面，导致下面找不到 chkDY_* 控件。
+        session.findById("wnd[0]/tbar[0]/okcd").text = "/nIW39"
         session.findById("wnd[0]").sendVKey(0)
         
         session.findById("wnd[0]/usr/chkDY_MAB").selected = True
