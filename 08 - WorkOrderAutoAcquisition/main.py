@@ -271,8 +271,15 @@ def write_to_google_sheet(excel_file_path, sheet_url, worksheet_name, auth_file,
         # 进一步清理：确保所有值都是 JSON 兼容的
         def clean_value(value):
             """清理单个值，确保符合 JSON 规范"""
-            if pd.isna(value) or value == '':
+            # 优先检查是否为 NaN/NaT/空值
+            if pd.isna(value) or value == '' or value is None:
                 return ''
+            # 处理 datetime 对象（包括 pandas Timestamp）
+            if isinstance(value, (pd.Timestamp, datetime.datetime)):
+                return value.strftime("%Y-%m-%d")
+            # 处理 date 对象
+            if isinstance(value, datetime.date):
+                return value.strftime("%Y-%m-%d")
             if isinstance(value, (float, int)):
                 if np.isinf(value) or np.isnan(value):
                     return ''
