@@ -19,7 +19,6 @@ import win32com.client
 import sys
 import os
 import datetime
-import calendar
 import pandas as pd
 import numpy as np
 import re
@@ -37,6 +36,10 @@ from sap_common import (get_resource_path, ensure_sap_running,
 OUTPUT_DIR = r"O:\My Drive\071 - SAP 数据\WorkOrder"
 OUTPUT_FILENAME = "Temporary_File.xlsx"
 
+# 日期范围：以运行日为基准向前/向后取，漏跑几天也不会断档
+LOOKBACK_DAYS = 15
+LOOKAHEAD_DAYS = 30
+
 # Google Sheets 配置
 GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1YzMGIQ2RcBlGIadWh5yfxlCmOpCuOBHpgKfEVz8_W98/edit?gid=0#gid=0'
 WORKSHEET_NAME = 'Database'
@@ -46,25 +49,21 @@ SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 def get_date_range():
     """
     基于函数运行时间输出两个日期（Start_date, End_date）
-    Start_date = 运行月的第一天，End_date = 运行月的最后一天
+    Start_date = 运行日往前 LOOKBACK_DAYS 天，End_date = 运行日往后 LOOKAHEAD_DAYS 天
     日期格式为 MM/DD/YYYY
-    
+
     Returns:
         tuple: (Start_date, End_date) 格式为 (MM/DD/YYYY, MM/DD/YYYY)
     """
     today = datetime.date.today()
-    
-    # 计算当月第一天
-    start_date = today.replace(day=1)
-    
-    # 计算当月最后一天
-    last_day = calendar.monthrange(today.year, today.month)[1]
-    end_date = today.replace(day=last_day)
-    
+
+    start_date = today - datetime.timedelta(days=LOOKBACK_DAYS)
+    end_date = today + datetime.timedelta(days=LOOKAHEAD_DAYS)
+
     # 格式化日期为 MM/DD/YYYY
     start_date_str = start_date.strftime("%m/%d/%Y")
     end_date_str = end_date.strftime("%m/%d/%Y")
-    
+
     return start_date_str, end_date_str
 
 
@@ -108,9 +107,9 @@ def get_work_order(session):
         # 设置功能位置
         session.findById("wnd[0]/usr/ctxtSTRNO-LOW").text = "CN15*"
         
-        # 设置日期范围（动态获取当月）
-        session.findById("wnd[0]/usr/ctxtDATUV").text = start_date
-        session.findById("wnd[0]/usr/ctxtDATUB").text = end_date
+        # 设置日期范围（按基本开始日期筛选，动态获取滚动窗口）
+        session.findById("wnd[0]/usr/ctxtGSTRP-LOW").text = start_date
+        session.findById("wnd[0]/usr/ctxtGSTRP-HIGH").text = end_date
         
         # 设置计划工厂和维护工厂
         session.findById("wnd[0]/usr/ctxtIWERK-LOW").text = "CN15"
