@@ -110,9 +110,9 @@ def get_work_order(session):
         # 设置功能位置
         session.findById("wnd[0]/usr/ctxtSTRNO-LOW").text = "CN15*"
         
-        # 设置日期范围（动态获取当年）
-        session.findById("wnd[0]/usr/ctxtDATUV").text = start_date
-        session.findById("wnd[0]/usr/ctxtDATUB").text = end_date
+        # 设置日期范围（按基本开始日期筛选，动态获取当年）
+        session.findById("wnd[0]/usr/ctxtGSTRP-LOW").text = start_date
+        session.findById("wnd[0]/usr/ctxtGSTRP-HIGH").text = end_date
         
         # 设置计划工厂和维护工厂
         session.findById("wnd[0]/usr/ctxtIWERK-LOW").text = "CN15"
