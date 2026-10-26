@@ -110,7 +110,10 @@ def get_work_order(session):
         # 设置功能位置
         session.findById("wnd[0]/usr/ctxtSTRNO-LOW").text = "CN15*"
         
-        # 设置日期范围（按基本开始日期筛选，动态获取当年）
+        # 设置日期范围（只按基本开始日期筛选，动态获取当年）
+        # SAP 会沿用上次输入的「期间」，不清空会和基本开始日期叠加成双重筛选
+        session.findById("wnd[0]/usr/ctxtDATUV").text = ""
+        session.findById("wnd[0]/usr/ctxtDATUB").text = ""
         session.findById("wnd[0]/usr/ctxtGSTRP-LOW").text = start_date
         session.findById("wnd[0]/usr/ctxtGSTRP-HIGH").text = end_date
         
