@@ -5,8 +5,6 @@ import subprocess
 import time
 import win32com.client
 import os
-import datetime
-import calendar
 import openpyxl
 import gspread
 import sys
@@ -42,7 +40,7 @@ def close_SAP():
     except Exception as e:
         print(f"关闭 SAP 进程失败: {e}")
 
-def run_ih08(session, year_month, last_day_str):
+def run_ih08(session, year_month):
     output_filename = f"{year_month}_A_Equipments.xlsx"
     output_file_path = os.path.join(OUTPUT_DIR_IH08, output_filename)
 
@@ -59,11 +57,9 @@ def run_ih08(session, year_month, last_day_str):
     session.findById("wnd[0]").sendVKey(0)
     time.sleep(1)
 
-    # 期间起始显式置空（只按截止日期筛选，避免 SAP 沿用上次输入）
+    # 期间起始/截止都显式置空，IH08 不做期间筛选（也避免 SAP 沿用上次输入）
     session.findById("wnd[0]/usr/ctxtDATUV").text = ""
-    session.findById("wnd[0]/usr/ctxtDATUB").text = last_day_str
-    session.findById("wnd[0]/usr/ctxtDATUB").setFocus()
-    session.findById("wnd[0]/usr/ctxtDATUB").caretPosition = 10
+    session.findById("wnd[0]/usr/ctxtDATUB").text = ""
 
     session.findById("wnd[0]/usr/btn%_STAE1_%_APP_%-VALU_PUSH").press()
     time.sleep(1)
@@ -420,12 +416,7 @@ if __name__ == "__main__":
         print(f"处理 {ym}")
         print(f"{'='*50}")
 
-        year = int(ym[:4])
-        month = int(ym[4:6])
-        last_day = datetime.date(year, month, calendar.monthrange(year, month)[1])
-        last_day_str = last_day.strftime("%m/%d/%Y")
-
-        ih08_file = run_ih08(session, ym, last_day_str)
+        ih08_file = run_ih08(session, ym)
         if not ih08_file:
             print(f"  ❌ {ym} IH08 失败，跳过")
             continue

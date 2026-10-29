@@ -2,7 +2,6 @@ import time
 import win32com.client
 import os
 import datetime
-import calendar
 import openpyxl
 import sys
 import warnings
@@ -33,7 +32,7 @@ from month_utils import months_to_sync, should_upload_month_data
 SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
 
 
-def get_a_equipments_ih08(session, year_month, last_day_str):
+def get_a_equipments_ih08(session, year_month):
     output_filename = f"{year_month}_A_Equipments.xlsx"
     output_file_path = os.path.join(OUTPUT_DIR_IH08, output_filename)
     
@@ -54,11 +53,9 @@ def get_a_equipments_ih08(session, year_month, last_day_str):
         session.findById("wnd[0]").sendVKey(0)
         time.sleep(1)
         
-        # 期间起始显式置空（只按截止日期筛选，避免 SAP 沿用上次输入）
+        # 期间起始/截止都显式置空，IH08 不做期间筛选（也避免 SAP 沿用上次输入）
         session.findById("wnd[0]/usr/ctxtDATUV").text = ""
-        session.findById("wnd[0]/usr/ctxtDATUB").text = last_day_str
-        session.findById("wnd[0]/usr/ctxtDATUB").setFocus()
-        session.findById("wnd[0]/usr/ctxtDATUB").caretPosition = 10
+        session.findById("wnd[0]/usr/ctxtDATUB").text = ""
         
         session.findById("wnd[0]/usr/btn%_STAE1_%_APP_%-VALU_PUSH").press()
         time.sleep(1)
@@ -487,17 +484,12 @@ if __name__ == "__main__":
         print(f"\n待同步月份: {', '.join(months)}")
 
         for year_month in months:
-            year = int(year_month[:4])
-            month = int(year_month[4:6])
-            last_day = datetime.date(year, month, calendar.monthrange(year, month)[1])
-            last_day_str = last_day.strftime("%m/%d/%Y")
-
             print("\n" + "="*50)
             print(f"处理月份: {year_month}")
-            print(f"日期范围: 起始不限 - {last_day_str}")
+            print("日期范围: 不筛选（期间起始/截止均置空）")
             print("="*50)
 
-            ih08_file = get_a_equipments_ih08(session, year_month, last_day_str)
+            ih08_file = get_a_equipments_ih08(session, year_month)
 
             if not ih08_file:
                 print(f"❌ {year_month} IH08 执行失败，终止程序")
