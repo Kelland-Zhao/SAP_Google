@@ -42,7 +42,7 @@ def close_SAP():
     except Exception as e:
         print(f"关闭 SAP 进程失败: {e}")
 
-def run_ih08(session, year_month, first_day_str, last_day_str):
+def run_ih08(session, year_month, last_day_str):
     output_filename = f"{year_month}_A_Equipments.xlsx"
     output_file_path = os.path.join(OUTPUT_DIR_IH08, output_filename)
 
@@ -59,7 +59,8 @@ def run_ih08(session, year_month, first_day_str, last_day_str):
     session.findById("wnd[0]").sendVKey(0)
     time.sleep(1)
 
-    session.findById("wnd[0]/usr/ctxtDATUV").text = first_day_str
+    # 期间起始显式置空（只按截止日期筛选，避免 SAP 沿用上次输入）
+    session.findById("wnd[0]/usr/ctxtDATUV").text = ""
     session.findById("wnd[0]/usr/ctxtDATUB").text = last_day_str
     session.findById("wnd[0]/usr/ctxtDATUB").setFocus()
     session.findById("wnd[0]/usr/ctxtDATUB").caretPosition = 10
@@ -421,12 +422,10 @@ if __name__ == "__main__":
 
         year = int(ym[:4])
         month = int(ym[4:6])
-        first_day = datetime.date(year, month, 1)
         last_day = datetime.date(year, month, calendar.monthrange(year, month)[1])
-        first_day_str = first_day.strftime("%m/%d/%Y")
         last_day_str = last_day.strftime("%m/%d/%Y")
 
-        ih08_file = run_ih08(session, ym, first_day_str, last_day_str)
+        ih08_file = run_ih08(session, ym, last_day_str)
         if not ih08_file:
             print(f"  ❌ {ym} IH08 失败，跳过")
             continue
