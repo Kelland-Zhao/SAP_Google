@@ -71,9 +71,9 @@ class ClassifyStatusTests(unittest.TestCase):
     def test_released_and_confirmed_needs_teco(self):
         self.assertEqual(classify_status({"REL", "CNF"}), ("TECO", ""))
 
-    def test_teco_and_cnf_is_managed(self):
+    def test_teco_and_cnf_is_closed(self):
         self.assertEqual(
-            classify_status({"TECO", "CNF"}), ("SKIP", "已管理(TECO+CNF)")
+            classify_status({"TECO", "CNF"}), ("SKIP", "已关闭(TECO+CNF)")
         )
 
     def test_teco_without_cnf_is_anomaly(self):
@@ -157,12 +157,12 @@ class BuildPlanTests(unittest.TestCase):
         self.assertEqual([d.order for d in plan.cnf_orders], ["A1"])
         self.assertEqual([d.order for d in plan.teco_orders], ["B1"])
         self.assertEqual({d.order: d.reason for d in plan.skipped},
-                         {"M1": "已管理(TECO+CNF)", "T1": "TECO无CNF"})
+                         {"M1": "已关闭(TECO+CNF)", "T1": "TECO无CNF"})
         self.assertEqual(plan.stats["pm01"], 1)
         self.assertEqual(plan.stats["too_recent"], 1)
         self.assertEqual(plan.stats["invalid"], 1)
         self.assertEqual(plan.stats["candidates"], 4)
-        self.assertEqual(plan.stats["managed"], 1)
+        self.assertEqual(plan.stats["closed"], 1)
         self.assertEqual(plan.stats["anomalies"], 1)
 
     def test_deduplicates_and_warns_on_conflict(self):
@@ -251,7 +251,7 @@ class BuildLogRowsTests(unittest.TestCase):
         plan = PlanResult(
             [OrderDecision("A1", "PM02", "2026-10-05", "REL", "CNF", "")],
             [],
-            [OrderDecision("S1", "PM02", "2026-10-05", "CRTD", "SKIP", "未释放")],
+            [OrderDecision("S1", "PM02", "2026-10-05", "TECO", "SKIP", "TECO无CNF")],
             {}, [],
         )
         execution = ExecutionResult(
@@ -263,10 +263,26 @@ class BuildLogRowsTests(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0], [
             "2026-11-02 07:00:00", "2026-11-02", "S1", "PM02",
-            "2026-10-05", "CRTD", "跳过", "跳过", "未释放",
+            "2026-10-05", "TECO", "跳过", "跳过", "TECO无CNF",
         ])
         self.assertEqual(rows[1], [
             "2026-11-02 07:00:00", "2026-11-02", "A1", "PM02",
             "2026-10-05", "REL", "工时确认", "成功", "已保存",
         ])
         self.assertTrue(all(len(row) == 9 for row in rows))
+
+    def test_normal_skips_are_not_logged(self):
+        plan = PlanResult(
+            [], [],
+            [
+                OrderDecision("M1", "PM02", "2026-10-05", "TECO CNF",
+                              "SKIP", "已关闭(TECO+CNF)"),
+                OrderDecision("S1", "PM02", "2026-10-05", "CRTD",
+                              "SKIP", "未释放"),
+            ],
+            {}, [],
+        )
+        execution = ExecutionResult([], [], 0)
+        rows = build_log_rows(plan, execution, datetime.date(2026, 11, 2),
+                              "2026-11-02 07:00:00")
+        self.assertEqual(rows, [])

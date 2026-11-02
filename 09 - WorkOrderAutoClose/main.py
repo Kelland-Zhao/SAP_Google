@@ -23,6 +23,7 @@ from sap_common import (get_resource_path, ensure_sap_running,
 from workorder_close_utils import (
     ExecutionResult,
     LOG_HEADERS,
+    NORMAL_SKIP_REASONS,
     WINDOW_DAYS,
     build_log_rows,
     build_plan,
@@ -112,14 +113,20 @@ def print_plan(plan, run_date):
     print(f"[CNF] 名单: {format_orders(plan.cnf_orders)}")
     print(f"组 B（待技术完成）: {len(plan.teco_orders)} 单")
     print(f"[TECO] 名单: {format_orders(plan.teco_orders)}")
-    print(f"已管理（TECO+CNF）: {stats.get('managed', 0)} 单")
+    print(f"已关闭（TECO+CNF）: {stats.get('closed', 0)} 单")
     print(f"异常/其他跳过: {stats.get('anomalies', 0)} 单")
 
     for warning in plan.warnings:
         print(f"⚠️ {warning}")
 
+    skip_counts = {}
     for decision in plan.skipped:
-        if decision.reason != "已管理(TECO+CNF)":
+        skip_counts[decision.reason] = skip_counts.get(decision.reason, 0) + 1
+    for reason, count in sorted(skip_counts.items()):
+        print(f"[SKIP] {reason}: {count} 单")
+
+    for decision in plan.skipped:
+        if decision.reason not in NORMAL_SKIP_REASONS:
             print(f"[SKIP] {decision.order} {decision.reason}")
 
 

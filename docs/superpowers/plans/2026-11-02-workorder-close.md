@@ -153,9 +153,9 @@ class ClassifyStatusTests(unittest.TestCase):
     def test_released_and_confirmed_needs_teco(self):
         self.assertEqual(classify_status({"REL", "CNF"}), ("TECO", ""))
 
-    def test_teco_and_cnf_is_managed(self):
+    def test_teco_and_cnf_is_closed(self):
         self.assertEqual(
-            classify_status({"TECO", "CNF"}), ("SKIP", "已管理(TECO+CNF)")
+            classify_status({"TECO", "CNF"}), ("SKIP", "已关闭(TECO+CNF)")
         )
 
     def test_teco_without_cnf_is_anomaly(self):
@@ -191,7 +191,7 @@ Expected: FAIL，`ModuleNotFoundError: No module named 'workorder_close_utils'`�
 - `parse_status` 用 `str(raw).split()`，每个 token 做 `.upper()`；`None`/空串返回 `set()`。
 - `parse_sheet_date` 支持 `%Y-%m-%d`、`%Y/%m/%d`、`%Y.%m.%d`、`%Y%m%d`、`%m/%d/%Y`、`%d.%m.%Y`；直接传 `datetime.date`/`datetime.datetime` 时返回 `date`；其余返回 `None`。
 - `is_due_for_close` 的判定是 `start <= run_date - timedelta(days=window_days)`（含边界，没有下限）。
-- `classify_status` 按此顺序：`TECO+CNF` → 已管理；`REL & !CNF & !TECO` → `CNF`；`REL & CNF & !TECO` → `TECO`；`TECO & !CNF` → 异常；`CNF & !REL & !TECO` → 异常；`REL & TECO` → 异常；其余 `未释放`。
+- `classify_status` 按此顺序：`TECO+CNF` → 已关闭；`REL & !CNF & !TECO` → `CNF`；`REL & CNF & !TECO` → `TECO`；`TECO & !CNF` → 异常；`CNF & !REL & !TECO` → 异常；`REL & TECO` → 异常；其余 `未释放`。
 - `parse_only_orders` 同时接受逗号和分号，返回 `set[str]` 或 `None`。
 
 - [ ] **Step 4: 运行测试，确认通过**
@@ -253,12 +253,12 @@ class BuildPlanTests(unittest.TestCase):
         self.assertEqual([d.order for d in plan.cnf_orders], ["A1"])
         self.assertEqual([d.order for d in plan.teco_orders], ["B1"])
         self.assertEqual({d.order: d.reason for d in plan.skipped},
-                         {"M1": "已管理(TECO+CNF)", "T1": "TECO无CNF"})
+                         {"M1": "已关闭(TECO+CNF)", "T1": "TECO无CNF"})
         self.assertEqual(plan.stats["pm01"], 1)
         self.assertEqual(plan.stats["too_recent"], 1)
         self.assertEqual(plan.stats["invalid"], 1)
         self.assertEqual(plan.stats["candidates"], 4)
-        self.assertEqual(plan.stats["managed"], 1)
+        self.assertEqual(plan.stats["closed"], 1)
         self.assertEqual(plan.stats["anomalies"], 1)
 
     def test_deduplicates_and_warns_on_conflict(self):
@@ -347,7 +347,7 @@ class BuildLogRowsTests(unittest.TestCase):
         plan = PlanResult(
             [OrderDecision("A1", "PM02", "2026-10-05", "REL", "CNF", "")],
             [],
-            [OrderDecision("S1", "PM02", "2026-10-05", "CRTD", "SKIP", "未释放")],
+            [OrderDecision("S1", "PM02", "2026-10-05", "TECO", "SKIP", "TECO无CNF")],
             {}, [],
         )
         execution = ExecutionResult(
@@ -359,7 +359,7 @@ class BuildLogRowsTests(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertEqual(rows[0], [
             "2026-11-02 07:00:00", "2026-11-02", "S1", "PM02",
-            "2026-10-05", "CRTD", "跳过", "跳过", "未释放",
+            "2026-10-05", "TECO", "跳过", "跳过", "TECO无CNF",
         ])
         self.assertEqual(rows[1], [
             "2026-11-02 07:00:00", "2026-11-02", "A1", "PM02",
@@ -379,11 +379,11 @@ Expected: FAIL，`ImportError` 或 `AttributeError`（`rows_from_values` / `buil
 
 要求：
 - `rows_from_values` 复用 `gap_utils.resolve_columns(values[0], REQUIRED_COLUMNS)`；`values` 为空时抛 `ValueError("工作表为空")`；缺列时让 `MissingColumnsError` 冒泡；所有单元格都为空的行直接跳过，不产生 `OrderRow`。
-- `build_plan` 的 `stats` 至少包含 `total_rows`、`pm01`、`too_recent`、`invalid`、`duplicates`、`candidates`、`managed`、`anomalies`；统计在 `only_orders` 过滤前算好。
+- `build_plan` 的 `stats` 至少包含 `total_rows`、`pm01`、`too_recent`、`invalid`、`duplicates`、`candidates`、`closed`、`anomalies`；统计在 `only_orders` 过滤前算好。
 - 只有通过 J/K 初筛（非空订单、非空订单类型、非 PM01、K 可解析且在窗口内）的行才进入 `cnf_orders` / `teco_orders` / `skipped`；其余只计数。
 - 重复订单保留第一条，后续计入 `duplicates`；状态不同时往 `warnings` 追加一条含订单号的警告。
 - `execute_plan` 的顺序：先对全部组 A 调用一次 `confirm_fn(orders)`；为每个组 A 订单生成一条「工时确认」记录（共用批次结果/消息）；成功则把所有组 A 加入 TECO 名单，失败则都不加入；然后对「组 B + 成功组 A」调用一次 `teco_fn`，为每个 TECO 订单生成一条「技术完成」记录；`teco_fn` 失败时所有 TECO 记录都记失败。
-- `build_log_rows` 先输出 `plan.skipped`，再按 `execution.records` 顺序输出；每行正好 9 列。
+- `build_log_rows` 只输出 `plan.skipped` 里的异常（不在 `NORMAL_SKIP_REASONS` 里），再按 `execution.records` 顺序输出；每行正好 9 列。`NORMAL_SKIP_REASONS = {"已关闭(TECO+CNF)", "未释放"}`。
 
 - [ ] **Step 8: 运行测试，确认通过**
 
@@ -667,7 +667,7 @@ git commit -m "V2026-11-02.02_新增09的SAP工时确认与技术完成操作" -
 - `get_or_create_log_sheet(sh)`：找不到就 `add_worksheet(title=LOG_WORKSHEET, rows=1000, cols=len(LOG_HEADERS))`。
 - `ensure_log_header(ws)`：`ws.row_values(1)` 全空时 `append_row(LOG_HEADERS, value_input_option="RAW")`；非空但与 `LOG_HEADERS` 不一致时打印警告，不覆盖。
 - `append_log_rows(sh, rows)`：`ws.append_rows(rows, value_input_option="RAW")`；任何异常只 `print("⚠️ 日志写入失败: ...")`。
-- `print_plan(plan, run_date)`：打印窗口、统计、`plan.warnings`、组 A/组 B 数量、已管理、异常/跳过明细（`reason != "已管理(TECO+CNF)"` 时逐单打印）。
+- `print_plan(plan, run_date)`：打印筛选条件、统计、`plan.warnings`、组 A/组 B 数量、已关闭数量；跳过按原因汇总，只有不在 `NORMAL_SKIP_REASONS` 里的异常才逐单打印。
 - `print_execution(execution)`：先打印 `[CNF] 批量提交 N 单: ...` 和批次消息，再逐条打印 `[CNF] 订单 成功/失败（整批结果）`；TECO 同样先打印 `[TECO] 批量提交 N 单: ...`，再逐条打印。
 - `run(argv=None)`：
   1. 打印提醒：`⚠️ 注意：09 依赖 Total_Workorder 是 04 刚刷新过的；单独运行前请先跑 04。`

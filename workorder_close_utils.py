@@ -18,6 +18,9 @@ LOG_HEADERS = [
     "处理前系统状态", "动作", "结果", "原因 / SAP 消息",
 ]
 
+# 这些跳过属于正常情况，只在控制台按原因汇总，不写 WorkOrderClose_Log。
+NORMAL_SKIP_REASONS = {"已关闭(TECO+CNF)", "未释放"}
+
 # 和 gap_utils 保持一致的日期写法集合。%Y%m%d 放在带分隔符的写法之后，
 # 互不冲突；全认不出来就返回 None。
 _DATE_FORMATS = (
@@ -109,7 +112,7 @@ def classify_status(statuses):
     has_teco = "TECO" in statuses
 
     if has_teco and has_cnf:
-        return ("SKIP", "已管理(TECO+CNF)")
+        return ("SKIP", "已关闭(TECO+CNF)")
     if has_rel and not has_cnf and not has_teco:
         return ("CNF", "")
     if has_rel and has_cnf and not has_teco:
@@ -179,7 +182,7 @@ def build_plan(values, run_date, window_days=WINDOW_DAYS, only_orders=None):
         "invalid": 0,
         "duplicates": 0,
         "candidates": 0,
-        "managed": 0,
+        "closed": 0,
         "anomalies": 0,
     }
     cnf_orders, teco_orders, skipped = [], [], []
@@ -234,10 +237,10 @@ def build_plan(values, run_date, window_days=WINDOW_DAYS, only_orders=None):
             skipped.append(decision)
         stats["candidates"] += 1
 
-    stats["managed"] = sum(
-        1 for decision in skipped if decision.reason == "已管理(TECO+CNF)"
+    stats["closed"] = sum(
+        1 for decision in skipped if decision.reason == "已关闭(TECO+CNF)"
     )
-    stats["anomalies"] = len(skipped) - stats["managed"]
+    stats["anomalies"] = len(skipped) - stats["closed"]
 
     if only_orders is not None:
         cnf_orders = [d for d in cnf_orders if d.order in only_orders]
@@ -279,6 +282,8 @@ def build_log_rows(plan, execution, run_date, timestamp):
     rows = []
 
     for decision in plan.skipped:
+        if decision.reason in NORMAL_SKIP_REASONS:
+            continue
         rows.append([
             timestamp, run_date_text, decision.order, decision.order_type,
             decision.start_date_raw, decision.status_raw,
