@@ -1,6 +1,6 @@
 """09 - 工单自动关闭。
 
-从 Total_Workorder 筛出近 14 天、非 PM01 的工单：
+从 Total_Workorder 筛出基本开始日期在 14 天前或更早、非 PM01 的工单：
   * 组 A（REL 且无 CNF/TECO）→ IW48 批量工时确认；
   * 组 B（REL+CNF 且无 TECO）→ IW38 批量技术完成；
   * 组 A 确认成功后，也并入同一轮 IW38。
@@ -96,14 +96,14 @@ def append_log_rows(sh, rows):
 
 
 def print_plan(plan, run_date):
-    window_start = run_date - datetime.timedelta(days=WINDOW_DAYS)
+    cutoff = run_date - datetime.timedelta(days=WINDOW_DAYS)
     stats = plan.stats
 
-    print(f"筛选窗口: {window_start} ~ {run_date}")
+    print(f"筛选条件: 基本开始日期 <= {cutoff}（今天往前 {WINDOW_DAYS} 天或更早）")
     print(
         f"读到 {stats.get('total_rows', 0)} 行；"
         f"排除 PM01 {stats.get('pm01', 0)} 行；"
-        f"窗口外 {stats.get('out_of_window', 0)} 行；"
+        f"未满 14 天 {stats.get('too_recent', 0)} 行；"
         f"无效 {stats.get('invalid', 0)} 行；"
         f"重复 {stats.get('duplicates', 0)} 行；"
         f"候选 {stats.get('candidates', 0)} 单"

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 新增 `09 - WorkOrderAutoClose`：从 `Total_Workorder` 筛出近 14 天、非 PM01 的工单，在 SAP 里自动做工时确认（IW48）和技术完成（IW38），结果打印到控制台并追加到 `WorkOrderClose_Log`。
+**Goal:** 新增 `09 - WorkOrderAutoClose`：从 `Total_Workorder` 筛出基本开始日期在 14 天前或更早、非 PM01 的工单，在 SAP 里自动做工时确认（IW48）和技术完成（IW38），结果打印到控制台并追加到 `WorkOrderClose_Log`。
 
 **Architecture:** 把可测试的纯逻辑放在仓库根的 `workorder_close_utils.py`；把 SAP GUI 操作放在 `workorder_close_sap.py`（只依赖传入的 session，不 import win32com，便于在 macOS 上用假 session 测试）；`09 - WorkOrderAutoClose/main.py` 只负责 argparse、gspread 读写、SAP 会话生命周期和把三者串起来。这样筛选/分组/日志行可以在 macOS 上跑单元测试，SAP 操作序列也能用假 session 验证按键顺序。
 
@@ -31,7 +31,7 @@
 1. **IW38 批量技术完成前是否真的选中了订单**：`btn[5]`/`btn[45]` 中一个是全选。如果按键顺序或选中状态不对，SAP 可能返回成功但一单没关。Task 2 的 `CompleteTechnicallyTests.test_uploads_orders_and_presses_recorded_sequence` 锁定按键顺序；Task 5 要求 Windows 上先做单量实测。
 2. **IW48 批量提交的结果粒度**：整批只有一个状态栏消息；一张订单有问题可能让整批失败。`btn[11]` 是保存，保存后立即读状态栏；空消息/错误消息都按整批失败处理，组 A 全部不进入 TECO，下一次 04 刷新后按实际状态重试。Task 2 的 `ConfirmTimesTests.test_*` 覆盖成功、错误、空消息三种情况。
 3. **重复订单号/状态冲突**：同一订单出现多行且状态不同，可能重复确认或选错状态。Task 1 的 `BuildPlanTests.test_deduplicates_and_warns_on_conflict` 锁定「保留第一条 + 警告」。
-4. **基本开始日期的格式**：K 列可能是 `YYYY-MM-DD`、`YYYYMMDD`、斜杠格式或空值。解析错误会把工单放进/漏出 14 天窗口。Task 1 的 `test_parse_sheet_date_*` 覆盖。
+4. **基本开始日期的格式**：K 列可能是 `YYYY-MM-DD`、`YYYYMMDD`、斜杠格式或空值。解析错误会把工单放进/漏出「14 天前或更早」的筛选。Task 1 的 `test_parse_sheet_date_*` 覆盖。
 5. **系统状态的双空格与中文状态**：状态串里有连续空格和中文（如 `结算`），必须按整词匹配。Task 1 的 `test_parse_status_*` 和 `test_classify_status_*` 覆盖。
 
 ---
@@ -78,7 +78,7 @@ Expected: 无输出。
   - `ExecutionResult(records: list[ActionRecord], teco_submitted: list[str], exit_code: int)`
   - `parse_status(raw) -> set[str]`
   - `parse_sheet_date(raw) -> datetime.date | None`
-  - `within_window(start: datetime.date, run_date: datetime.date, window_days: int = WINDOW_DAYS) -> bool`
+  - `is_due_for_close(start: datetime.date, run_date: datetime.date, window_days: int = WINDOW_DAYS) -> bool`
   - `classify_status(statuses: set[str]) -> tuple[str, str]`
   - `parse_only_orders(raw: str | None) -> set[str] | None`
   - `rows_from_values(values: list[list[str]]) -> list[OrderRow]`
@@ -96,8 +96,8 @@ import datetime
 import unittest
 
 from workorder_close_utils import (
-    classify_status, parse_only_orders, parse_sheet_date, parse_status,
-    within_window,
+    classify_status, is_due_for_close, parse_only_orders, parse_sheet_date,
+    parse_status,
 )
 
 
@@ -132,16 +132,18 @@ class ParseSheetDateTests(unittest.TestCase):
                          datetime.date(2026, 10, 5))
 
 
-class WindowTests(unittest.TestCase):
-    def test_includes_both_boundaries(self):
+class DueForCloseTests(unittest.TestCase):
+    def test_includes_cutoff_and_older(self):
         run = datetime.date(2026, 11, 2)
-        self.assertTrue(within_window(datetime.date(2026, 10, 19), run))
-        self.assertTrue(within_window(run, run))
+        self.assertTrue(is_due_for_close(datetime.date(2026, 10, 19), run))
+        self.assertTrue(is_due_for_close(datetime.date(2026, 10, 18), run))
+        self.assertTrue(is_due_for_close(datetime.date(2026, 1, 1), run))
 
-    def test_rejects_outside(self):
+    def test_rejects_recent_and_future(self):
         run = datetime.date(2026, 11, 2)
-        self.assertFalse(within_window(datetime.date(2026, 10, 18), run))
-        self.assertFalse(within_window(datetime.date(2026, 11, 3), run))
+        self.assertFalse(is_due_for_close(datetime.date(2026, 10, 20), run))
+        self.assertFalse(is_due_for_close(run, run))
+        self.assertFalse(is_due_for_close(datetime.date(2026, 11, 3), run))
 
 
 class ClassifyStatusTests(unittest.TestCase):
@@ -183,12 +185,12 @@ Expected: FAIL，`ModuleNotFoundError: No module named 'workorder_close_utils'`�
 
 - [ ] **Step 3: 实现第一批函数**
 
-在 `workorder_close_utils.py` 中实现 dataclasses 与 `parse_status` / `parse_sheet_date` / `within_window` / `classify_status` / `parse_only_orders`。
+在 `workorder_close_utils.py` 中实现 dataclasses 与 `parse_status` / `parse_sheet_date` / `is_due_for_close` / `classify_status` / `parse_only_orders`。
 
 要求：
 - `parse_status` 用 `str(raw).split()`，每个 token 做 `.upper()`；`None`/空串返回 `set()`。
 - `parse_sheet_date` 支持 `%Y-%m-%d`、`%Y/%m/%d`、`%Y.%m.%d`、`%Y%m%d`、`%m/%d/%Y`、`%d.%m.%Y`；直接传 `datetime.date`/`datetime.datetime` 时返回 `date`；其余返回 `None`。
-- `within_window` 是闭区间：`run_date - timedelta(days=window_days) <= start <= run_date`。
+- `is_due_for_close` 的判定是 `start <= run_date - timedelta(days=window_days)`（含边界，没有下限）。
 - `classify_status` 按此顺序：`TECO+CNF` → 已管理；`REL & !CNF & !TECO` → `CNF`；`REL & CNF & !TECO` → `TECO`；`TECO & !CNF` → 异常；`CNF & !REL & !TECO` → 异常；`REL & TECO` → 异常；其余 `未释放`。
 - `parse_only_orders` 同时接受逗号和分号，返回 `set[str]` 或 `None`。
 
@@ -208,10 +210,10 @@ HEADER = ["参考日期", "通知", "订单", "功能位置", "设备", "描述"
 
 
 def sheet_row(order="5641705", status="REL", order_type="PM02",
-              start="2026-10-25"):
+              start="2026-10-05"):
     return ["20261020", "", order, "CN15/UTIL/ELEC", "10132240",
             "1#电容柜季保养", "CN03101660", status, "A", order_type, start,
-            "2026-10-25", "2026-10-25", "2026-10-20"]
+            "2026-10-05", "2026-10-05", "2026-10-20"]
 
 
 def values(*rows):
@@ -226,7 +228,7 @@ class RowsFromValuesTests(unittest.TestCase):
         self.assertEqual(rows[0].order, "5641705")
         self.assertEqual(rows[0].status_raw, "REL")
         self.assertEqual(rows[0].order_type, "PM02")
-        self.assertEqual(rows[0].start_date_raw, "2026-10-25")
+        self.assertEqual(rows[0].start_date_raw, "2026-10-05")
 
     def test_missing_required_header_raises(self):
         from gap_utils import MissingColumnsError
@@ -245,7 +247,7 @@ class BuildPlanTests(unittest.TestCase):
             sheet_row(order="M1", status="TECO CNF", order_type="PM02"),
             sheet_row(order="T1", status="TECO", order_type="PM02"),
             sheet_row(order="P1", status="REL", order_type="PM01"),
-            sheet_row(order="O1", status="REL", start="2026-10-18"),
+            sheet_row(order="O1", status="REL", start="2026-10-20"),
             sheet_row(order="I1", status="REL", start="bad-date"),
         ), self.RUN_DATE)
         self.assertEqual([d.order for d in plan.cnf_orders], ["A1"])
@@ -253,7 +255,7 @@ class BuildPlanTests(unittest.TestCase):
         self.assertEqual({d.order: d.reason for d in plan.skipped},
                          {"M1": "已管理(TECO+CNF)", "T1": "TECO无CNF"})
         self.assertEqual(plan.stats["pm01"], 1)
-        self.assertEqual(plan.stats["out_of_window"], 1)
+        self.assertEqual(plan.stats["too_recent"], 1)
         self.assertEqual(plan.stats["invalid"], 1)
         self.assertEqual(plan.stats["candidates"], 4)
         self.assertEqual(plan.stats["managed"], 1)
@@ -377,7 +379,7 @@ Expected: FAIL，`ImportError` 或 `AttributeError`（`rows_from_values` / `buil
 
 要求：
 - `rows_from_values` 复用 `gap_utils.resolve_columns(values[0], REQUIRED_COLUMNS)`；`values` 为空时抛 `ValueError("工作表为空")`；缺列时让 `MissingColumnsError` 冒泡；所有单元格都为空的行直接跳过，不产生 `OrderRow`。
-- `build_plan` 的 `stats` 至少包含 `total_rows`、`pm01`、`out_of_window`、`invalid`、`duplicates`、`candidates`、`managed`、`anomalies`；统计在 `only_orders` 过滤前算好。
+- `build_plan` 的 `stats` 至少包含 `total_rows`、`pm01`、`too_recent`、`invalid`、`duplicates`、`candidates`、`managed`、`anomalies`；统计在 `only_orders` 过滤前算好。
 - 只有通过 J/K 初筛（非空订单、非空订单类型、非 PM01、K 可解析且在窗口内）的行才进入 `cnf_orders` / `teco_orders` / `skipped`；其余只计数。
 - 重复订单保留第一条，后续计入 `duplicates`；状态不同时往 `warnings` 追加一条含订单号的警告。
 - `execute_plan` 的顺序：先对全部组 A 调用一次 `confirm_fn(orders)`；为每个组 A 订单生成一条「工时确认」记录（共用批次结果/消息）；成功则把所有组 A 加入 TECO 名单，失败则都不加入；然后对「组 B + 成功组 A」调用一次 `teco_fn`，为每个 TECO 订单生成一条「技术完成」记录；`teco_fn` 失败时所有 TECO 记录都记失败。
@@ -746,10 +748,10 @@ $Projects = @(
 - 执行顺序改为：`00 → 01 → 02 → 03 → 04 → 09 → 04 → 06 → 07`，并解释：第一次 04 刷新 Sheet，09 关单，第二次 04 把新状态刷回 Sheet。
 - 项目清单表增加：
   `| 09 - WorkOrderAutoClose | IW48 + IW38 | 工时确认 + 技术完成 | WorkOrderClose_Log |`
-- 在项目清单后加一段 09 的说明：筛选规则（非 PM01、K 列近 14 天）、组 A/组 B、批量 TECO、日志 9 列、退出码、`REL` 与 `CNF` 可共存、单独运行前必须先跑 04。
+- 在项目清单后加一段 09 的说明：筛选规则（非 PM01、K 列 14 天前或更早）、组 A/组 B、批量 TECO、日志 9 列、退出码、`REL` 与 `CNF` 可共存、单独运行前必须先跑 04。
 - 「环境要求」的依赖说明里补充 09 不需要 Excel/pandas。
 - 如果第一次 04 失败，run_all 会跳过 09（避免用旧 Sheet 关单），第二次 04 仍执行。
-- 记录 1 月初的已知限制：14 天窗口可能包含上一年 12 月的行，而当前 04 只刷新当年数据；后续把 04 改为动态 365 天后解决。
+- 记录已知限制：09 现在取 `K <= 今天-14天`（没有下限），上一年度及更早的行都可能被选中，而当前 04 只刷新当年数据；后续把 04 改为动态 365 天后解决。
 - 「目录里还有什么」表增加 `workorder_close_utils.py` 和 `workorder_close_sap.py` 两行，说明前者是纯逻辑、后者是 SAP 操作。
 
 - [ ] **Step 3: 复制录制脚本**

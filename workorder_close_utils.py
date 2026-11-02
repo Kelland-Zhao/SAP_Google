@@ -97,9 +97,9 @@ def parse_sheet_date(raw):
     return None
 
 
-def within_window(start, run_date, window_days=WINDOW_DAYS):
-    """闭区间：run_date 往前 window_days 天 到 run_date。"""
-    return run_date - datetime.timedelta(days=window_days) <= start <= run_date
+def is_due_for_close(start, run_date, window_days=WINDOW_DAYS):
+    """基本开始日期在 run_date 往前 window_days 天或更早（含边界）。"""
+    return start <= run_date - datetime.timedelta(days=window_days)
 
 
 def classify_status(statuses):
@@ -175,7 +175,7 @@ def build_plan(values, run_date, window_days=WINDOW_DAYS, only_orders=None):
     stats = {
         "total_rows": 0,
         "pm01": 0,
-        "out_of_window": 0,
+        "too_recent": 0,
         "invalid": 0,
         "duplicates": 0,
         "candidates": 0,
@@ -203,8 +203,8 @@ def build_plan(values, run_date, window_days=WINDOW_DAYS, only_orders=None):
         if start is None:
             stats["invalid"] += 1
             continue
-        if not within_window(start, run_date, window_days):
-            stats["out_of_window"] += 1
+        if not is_due_for_close(start, run_date, window_days):
+            stats["too_recent"] += 1
             continue
 
         if row.order in seen:

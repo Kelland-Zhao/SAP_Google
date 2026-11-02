@@ -11,11 +11,11 @@ from workorder_close_utils import (
     classify_status,
     execute_plan,
     format_orders,
+    is_due_for_close,
     parse_only_orders,
     parse_sheet_date,
     parse_status,
     rows_from_values,
-    within_window,
 )
 
 
@@ -50,16 +50,18 @@ class ParseSheetDateTests(unittest.TestCase):
                          datetime.date(2026, 10, 5))
 
 
-class WindowTests(unittest.TestCase):
-    def test_includes_both_boundaries(self):
+class DueForCloseTests(unittest.TestCase):
+    def test_includes_cutoff_and_older(self):
         run = datetime.date(2026, 11, 2)
-        self.assertTrue(within_window(datetime.date(2026, 10, 19), run))
-        self.assertTrue(within_window(run, run))
+        self.assertTrue(is_due_for_close(datetime.date(2026, 10, 19), run))
+        self.assertTrue(is_due_for_close(datetime.date(2026, 10, 18), run))
+        self.assertTrue(is_due_for_close(datetime.date(2026, 1, 1), run))
 
-    def test_rejects_outside(self):
+    def test_rejects_recent_and_future(self):
         run = datetime.date(2026, 11, 2)
-        self.assertFalse(within_window(datetime.date(2026, 10, 18), run))
-        self.assertFalse(within_window(datetime.date(2026, 11, 3), run))
+        self.assertFalse(is_due_for_close(datetime.date(2026, 10, 20), run))
+        self.assertFalse(is_due_for_close(run, run))
+        self.assertFalse(is_due_for_close(datetime.date(2026, 11, 3), run))
 
 
 class ClassifyStatusTests(unittest.TestCase):
@@ -112,10 +114,10 @@ HEADER = ["参考日期", "通知", "订单", "功能位置", "设备", "描述"
 
 
 def sheet_row(order="5641705", status="REL", order_type="PM02",
-              start="2026-10-25"):
+              start="2026-10-05"):
     return ["20261020", "", order, "CN15/UTIL/ELEC", "10132240",
             "1#电容柜季保养", "CN03101660", status, "A", order_type, start,
-            "2026-10-25", "2026-10-25", "2026-10-20"]
+            "2026-10-05", "2026-10-05", "2026-10-20"]
 
 
 def values(*rows):
@@ -130,7 +132,7 @@ class RowsFromValuesTests(unittest.TestCase):
         self.assertEqual(rows[0].order, "5641705")
         self.assertEqual(rows[0].status_raw, "REL")
         self.assertEqual(rows[0].order_type, "PM02")
-        self.assertEqual(rows[0].start_date_raw, "2026-10-25")
+        self.assertEqual(rows[0].start_date_raw, "2026-10-05")
 
     def test_missing_required_header_raises(self):
         from gap_utils import MissingColumnsError
@@ -149,7 +151,7 @@ class BuildPlanTests(unittest.TestCase):
             sheet_row(order="M1", status="TECO CNF", order_type="PM02"),
             sheet_row(order="T1", status="TECO", order_type="PM02"),
             sheet_row(order="P1", status="REL", order_type="PM01"),
-            sheet_row(order="O1", status="REL", start="2026-10-18"),
+            sheet_row(order="O1", status="REL", start="2026-10-20"),
             sheet_row(order="I1", status="REL", start="bad-date"),
         ), self.RUN_DATE)
         self.assertEqual([d.order for d in plan.cnf_orders], ["A1"])
@@ -157,7 +159,7 @@ class BuildPlanTests(unittest.TestCase):
         self.assertEqual({d.order: d.reason for d in plan.skipped},
                          {"M1": "已管理(TECO+CNF)", "T1": "TECO无CNF"})
         self.assertEqual(plan.stats["pm01"], 1)
-        self.assertEqual(plan.stats["out_of_window"], 1)
+        self.assertEqual(plan.stats["too_recent"], 1)
         self.assertEqual(plan.stats["invalid"], 1)
         self.assertEqual(plan.stats["candidates"], 4)
         self.assertEqual(plan.stats["managed"], 1)
