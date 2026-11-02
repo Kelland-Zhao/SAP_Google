@@ -96,8 +96,8 @@ import datetime
 import unittest
 
 from workorder_close_utils import (
-    build_log_rows, build_plan, classify_status, execute_plan,
-    parse_only_orders, parse_sheet_date, parse_status, within_window,
+    classify_status, parse_only_orders, parse_sheet_date, parse_status,
+    within_window,
 )
 
 
@@ -236,7 +236,7 @@ class RowsFromValuesTests(unittest.TestCase):
 
 
 class BuildPlanTests(unittest.TestCase):
-    run = datetime.date(2026, 11, 2)
+    RUN_DATE = datetime.date(2026, 11, 2)
 
     def test_classifies_groups_and_counts(self):
         plan = build_plan(values(
@@ -247,7 +247,7 @@ class BuildPlanTests(unittest.TestCase):
             sheet_row(order="P1", status="REL", order_type="PM01"),
             sheet_row(order="O1", status="REL", start="2026-10-18"),
             sheet_row(order="I1", status="REL", start="bad-date"),
-        ), self.run)
+        ), self.RUN_DATE)
         self.assertEqual([d.order for d in plan.cnf_orders], ["A1"])
         self.assertEqual([d.order for d in plan.teco_orders], ["B1"])
         self.assertEqual({d.order: d.reason for d in plan.skipped},
@@ -263,7 +263,7 @@ class BuildPlanTests(unittest.TestCase):
         plan = build_plan(values(
             sheet_row(order="X1", status="REL"),
             sheet_row(order="X1", status="REL CNF"),
-        ), self.run)
+        ), self.RUN_DATE)
         self.assertEqual([d.order for d in plan.cnf_orders], ["X1"])
         self.assertEqual(plan.stats["duplicates"], 1)
         self.assertEqual(len(plan.warnings), 1)
@@ -273,7 +273,7 @@ class BuildPlanTests(unittest.TestCase):
         plan = build_plan(values(
             sheet_row(order="A1", status="REL"),
             sheet_row(order="B1", status="REL CNF"),
-        ), self.run, only_orders={"A1"})
+        ), self.RUN_DATE, only_orders={"A1"})
         self.assertEqual([d.order for d in plan.cnf_orders], ["A1"])
         self.assertEqual(plan.teco_orders, [])
         self.assertEqual(plan.stats["candidates"], 2)
@@ -282,14 +282,12 @@ class BuildPlanTests(unittest.TestCase):
         plan = build_plan(values(
             sheet_row(order=""),
             sheet_row(order="A1", order_type=""),
-        ), self.run)
+        ), self.RUN_DATE)
         self.assertEqual(plan.stats["invalid"], 2)
         self.assertEqual(plan.stats["candidates"], 0)
 
 
 class ExecutePlanTests(unittest.TestCase):
-    run = datetime.date(2026, 11, 2)
-
     def _plan(self, cnf_orders, teco_orders=()):
         def decision(order, action):
             return OrderDecision(order, "PM02", "2026-10-05", "REL", action, "")
