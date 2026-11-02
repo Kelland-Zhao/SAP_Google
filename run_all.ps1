@@ -16,6 +16,8 @@ $Projects = @(
     "02 - Critical_A_ &_H_equipment_with_Maintenance_Plan_Sync",
     "03 - Safety_Stock_ZSE16",
     "04 - Total_Workorder",
+    "09 - WorkOrderAutoClose",
+    "04 - Total_Workorder",
     "06 - IM_Equipment_Number",
     "07 - Inventory_MB52"
 )
@@ -27,7 +29,7 @@ $FailedList = @()
 
 $Timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 Write-Host "========================================"
-Write-Host "  SAP 自动运行 - 共 $Total 个项目"
+Write-Host "  SAP 自动运行 - 共 $Total 个步骤"
 Write-Host "  代码版本: $GitRev"
 Write-Host "  开始: $Timestamp"
 Write-Host "========================================"
@@ -48,7 +50,7 @@ if ($SapExit -eq 0) {
     $SapWasAlreadyRunning = $true
 } else {
     Write-Host "  ❌ SAP 启动失败（退出码 $SapExit），本次运行终止。" -ForegroundColor Red
-    Write-Host "     （不终止的话 7 个脚本会各等 60 秒再全部失败）" -ForegroundColor Red
+    Write-Host "     （不终止的话 8 个脚本会各等 60 秒再全部失败）" -ForegroundColor Red
     "[$Timestamp] SAP 启动失败（退出码 $SapExit），运行终止" | Out-File -Append $LogFile -Encoding UTF8
     exit 1
 }

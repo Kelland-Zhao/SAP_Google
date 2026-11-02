@@ -2,7 +2,7 @@
 
 一套定时运行的脚本：**从 SAP 拉取报表 → 本地处理 → 写入 Google Sheets**。
 
-由 `run_all.ps1` 依次执行 7 个独立脚本，全程约 9–10 分钟。
+由 `run_all.ps1` 依次执行 8 个独立脚本、9 个步骤（`04` 跑两次）。
 
 其中 `00`/`01`/`02` 每次会处理**上一个日历月 + 当前月**（见「跨月补偿」），所以比其余脚本慢一倍。
 
@@ -36,20 +36,22 @@
 
 ## 运行方式
 
-### 全量运行（7 个项目）
+### 全量运行（8 个项目 / 9 个步骤）
 
 ```powershell
 cd "C:\Users\kelland zhao\Projects\SAP_Google_AutoRun"
 .\run_all.ps1
 ```
 
-执行顺序：`00 → 01 → 02 → 03 → 04 → 06 → 07`（**不含 `05` 和 `08`**，见下方「项目清单」）。
+执行顺序：`00 → 01 → 02 → 03 → 04 → 09 → 04 → 06 → 07`（**不含 `05` 和 `08`**，见下方「项目清单」）。
+
+第一次 `04` 刷新 `Total_Workorder`；`09` 读它并关单；第二次 `04` 把关单后的新状态再刷回 Sheet。
 
 结果同时输出到控制台和 `run_all.log`。开头会打印本次运行的**代码版本**，便于事后核对：
 
 ```
 ========================================
-  SAP 自动运行 - 共 7 个项目
+  SAP 自动运行 - 共 9 个步骤
   代码版本: 09e73e7
   开始: 2026-10-05 13:35:31
 ========================================
@@ -105,6 +107,7 @@ python "03 - Safety_Stock_ZSE16\main.py" ; "退出码 = $LASTEXITCODE"
 | `02 - Critical_A_ &_H_equipment_with_Maintenance_Plan_Sync` | IH08 → IP18 | A 级关键设备中有维护计划的比例 + 无计划设备清单 | `MasterData`、`无保养计划A类设备` |
 | `03 - Safety_Stock_ZSE16` | ZSE16 | 安全库存全量 | `安全库存数据` |
 | `04 - Total_Workorder` | IW39 | 全年工单总表 | `Total_Workorder` |
+| `09 - WorkOrderAutoClose` | IW48 + IW38 | 工时确认 + 技术完成 | `WorkOrderClose_Log` |
 | `06 - IM_Equipment_Number` | IH08 | 设备编号（含 Tag 列） | `Equipment_Number_EAM` |
 | `07 - Inventory_MB52` | MB52 | 库存 | `MasterData` |
 
@@ -123,6 +126,18 @@ python "03 - Safety_Stock_ZSE16\main.py" ; "退出码 = $LASTEXITCODE"
 > 逻辑（找列、日期归一化、按月拆行）放在仓库根的 `gap_utils.py`，不 import `win32com`，所以它的单元测试在任何机器上都能跑：`python -m unittest discover -s tests`。
 
 `03` 和 `07` 写入**另一张**表格：`03` 用 `安全库存数据` 工作表，`07` 用 `MasterData` 工作表。
+
+### `09` 的说明：工单自动关闭
+
+- 数据源：`Total_Workorder` 的 C 列订单号；J 列排除 `PM01`；K 列只取「运行日往前 14 天」内的工单。
+- 组 A（`REL` 且无 `CNF`/`TECO`）：IW48 批量工时确认（最终确认、结清未清预留、没有剩余工作）。
+- 组 B（`REL` + `CNF` 且无 `TECO`）：IW38 批量技术完成。
+- 组 A 批次成功后也并入同一轮 IW38；批次失败则组 A 全部不进入 TECO，组 B 照常执行。
+- 结果打印到控制台，并追加到同一 spreadsheet 的 `WorkOrderClose_Log`（9 列：执行时间、运行日期、订单、订单类型、基本开始日期、处理前系统状态、动作、结果、原因 / SAP 消息）。
+- 退出码：`0` 成功或无事可做；`1` 读 Sheet 失败、SAP 失败、IW48 批次失败或 IW38 批次失败。
+- 数据事实：`REL` 与 `CNF` 可以共存（存在 `REL CNF ...` 的行）；`TECO` 会移除 `REL`。
+- **单独运行 09 前必须先跑 04**，否则 Sheet 里的状态可能是旧的。
+- 1 月初的已知限制：14 天窗口可能包含上一年 12 月的行，而当前 04 只刷新当年数据；后续把 04 改为动态 365 天后解决。
 
 ### 不在 `run_all.ps1` 中（当前挂起）
 
@@ -155,6 +170,8 @@ pip install pywin32 openpyxl gspread google-auth requests urllib3 pandas numpy
 | `pywin32` | `win32com.client` 驱动 SAP GUI 和 Excel |
 | `openpyxl` / `pandas` / `numpy` | 读写和清洗导出的 Excel / 文本 |
 | `gspread` + `google-auth` | 写入 Google Sheets |
+
+`09 - WorkOrderAutoClose` 只用到 `pywin32`、`gspread`、`google-auth`，不需要 Excel / `openpyxl` / `pandas` / `numpy`。
 
 > 项目里**没有 `requirements.txt`**，依赖需手工安装。
 
@@ -202,8 +219,10 @@ pip install pywin32 openpyxl gspread google-auth requests urllib3 pandas numpy
 
 | 文件 | 说明 |
 |---|---|
-| `run_all.ps1` | 编排器：依次运行 7 个项目并统计成败 |
+| `run_all.ps1` | 编排器：依次运行 8 个项目 / 9 个步骤并统计成败 |
 | **`sap_common.py`** | **各脚本共用的公共模块**，提供 `get_resource_path` / `start_sap` / `wait_for_sap_session` / `close_sap`。SAP 的系统、客户端、语言等配置也在这里 |
+| `workorder_close_utils.py` | `09` 的纯逻辑（筛选、分组、执行编排、日志行），不 import `win32com`，单元测试可在任何机器上跑 |
+| `workorder_close_sap.py` | `09` 的 SAP GUI 操作（IW48 批量工时确认、IW38 批量技术完成），只依赖传入的 session |
 | `run_all.log` | 运行日志（含代码版本、每步耗时、每个脚本的退出码） |
 | `*/batch_update.py` | **一次性历史回填脚本**（`00`/`01`/`02` 各一份），用硬编码的月份列表补跑历史数据，日常运行不会执行。**尚未迁到 `sap_common`** |
 | `08 - .../*.vbs`、`*/*.txt` | SAP GUI 录制脚本及其导出产物，历史遗留 |
