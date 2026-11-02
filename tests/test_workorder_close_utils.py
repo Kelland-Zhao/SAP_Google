@@ -10,6 +10,7 @@ from workorder_close_utils import (
     build_plan,
     classify_status,
     execute_plan,
+    format_orders,
     parse_only_orders,
     parse_sheet_date,
     parse_status,
@@ -91,6 +92,18 @@ class ParseOnlyOrdersTests(unittest.TestCase):
     def test_splits_on_commas_and_semicolons(self):
         self.assertEqual(parse_only_orders("5609259, 5611111;5620201"),
                          {"5609259", "5611111", "5620201"})
+
+
+class FormatOrdersTests(unittest.TestCase):
+    def test_empty_list_returns_marker(self):
+        self.assertEqual(format_orders([]), "（无）")
+
+    def test_joins_order_numbers(self):
+        decisions = [
+            OrderDecision("A1", "PM02", "2026-10-25", "REL", "CNF", ""),
+            OrderDecision("A2", "PM03", "2026-10-25", "REL", "CNF", ""),
+        ]
+        self.assertEqual(format_orders(decisions), "A1, A2")
 
 
 HEADER = ["参考日期", "通知", "订单", "功能位置", "设备", "描述", "成本中心",

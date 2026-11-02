@@ -56,15 +56,28 @@ class ConfirmTimesTests(unittest.TestCase):
             ok, message = sap.confirm_times(session, ["5609259", "5611111"])
         self.assertTrue(ok)
         clipboard.assert_called_once_with("5609259\r\n5611111")
-        for cid in (
+        self.assertEqual(session.pressed, [
             "wnd[0]/tbar[1]/btn[19]",
+            "wnd[0]/usr/btn%_ARBPL_%_APP_%-VALU_PUSH",
+            "wnd[1]/tbar[0]/btn[16]",
+            "wnd[1]/tbar[0]/btn[8]",
+            "wnd[0]/usr/btn%_WERKS_%_APP_%-VALU_PUSH",
+            "wnd[1]/tbar[0]/btn[16]",
+            "wnd[1]/tbar[0]/btn[8]",
+            "wnd[0]/usr/btn%_AUART_%_APP_%-VALU_PUSH",
+            "wnd[1]/tbar[0]/btn[16]",
+            "wnd[1]/tbar[0]/btn[8]",
+            "wnd[0]/usr/btn%_AUFNR_%_APP_%-VALU_PUSH",
+            "wnd[1]/tbar[0]/btn[16]",
             "wnd[1]/tbar[0]/btn[24]",
+            "wnd[1]/tbar[0]/btn[8]",
             "wnd[0]/tbar[1]/btn[8]",
             "wnd[0]/tbar[1]/btn[9]",
             "wnd[0]/tbar[1]/btn[38]",
             "wnd[0]/tbar[0]/btn[11]",
-        ):
-            self.assertIn(cid, session.pressed)
+        ])
+        self.assertEqual(session.sent, [("wnd[0]", 0)])
+        self.assertEqual(session.controls["wnd[0]/tbar[0]/okcd"].text, "/nIW48")
         for cid in (
             "wnd[0]/usr/tblSAPLCORUTABCDEF_3350/chkAFRD-AUERU[9,0]",
             "wnd[0]/usr/tblSAPLCORUTABCDEF_3350/chkAFRD-AUSOR[10,0]",
@@ -112,15 +125,18 @@ class CompleteTechnicallyTests(unittest.TestCase):
             ok, message = sap.complete_technically(session, ["5609259", "5611111"])
         self.assertTrue(ok)
         clipboard.assert_called_once_with("5609259\r\n5611111")
-        for cid in (
+        self.assertEqual(session.pressed, [
+            "wnd[0]/usr/btn%_AUFNR_%_APP_%-VALU_PUSH",
+            "wnd[1]/tbar[0]/btn[16]",
             "wnd[1]/tbar[0]/btn[24]",
             "wnd[1]/tbar[0]/btn[8]",
             "wnd[0]/tbar[1]/btn[8]",
             "wnd[0]/tbar[1]/btn[5]",
             "wnd[0]/tbar[1]/btn[45]",
             "wnd[1]/usr/btnSPOP-VAROPTION1",
-        ):
-            self.assertIn(cid, session.pressed)
+        ])
+        self.assertEqual(session.sent, [("wnd[0]", 0)])
+        self.assertEqual(session.controls["wnd[0]/tbar[0]/okcd"].text, "/nIW38")
         self.assertEqual(session.controls["wnd[0]/usr/ctxtVARIANT"].text, "/KEL")
 
     def test_no_orders_does_not_touch_sap(self):
@@ -145,6 +161,14 @@ class CompleteTechnicallyTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("未选择订单", message)
 
+    def test_zero_changes_is_failure(self):
+        session = FakeSession(message_type="S", text="0 单已更改")
+        with patch("workorder_close_sap.time.sleep"), \
+             patch("workorder_close_sap.copy_to_clipboard"):
+            ok, message = sap.complete_technically(session, ["5609259"])
+        self.assertFalse(ok)
+        self.assertIn("0 单已更改", message)
+
 
 class IsSuccessTests(unittest.TestCase):
     def test_success_and_warning_are_success(self):
@@ -158,3 +182,6 @@ class IsSuccessTests(unittest.TestCase):
     def test_warning_with_negative_text_is_failure(self):
         self.assertFalse(sap.is_success("W", "未选择订单"))
         self.assertFalse(sap.is_success("S", "not selected"))
+        self.assertFalse(sap.is_success("S", "0 单已更改"))
+        self.assertFalse(sap.is_success("W", "订单未更改"))
+        self.assertFalse(sap.is_success("S", "no changes"))

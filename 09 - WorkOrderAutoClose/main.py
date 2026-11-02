@@ -27,6 +27,7 @@ from workorder_close_utils import (
     build_log_rows,
     build_plan,
     execute_plan,
+    format_orders,
     parse_only_orders,
 )
 from workorder_close_sap import confirm_times, complete_technically
@@ -108,7 +109,9 @@ def print_plan(plan, run_date):
         f"候选 {stats.get('candidates', 0)} 单"
     )
     print(f"组 A（待工时确认）: {len(plan.cnf_orders)} 单")
+    print(f"[CNF] 名单: {format_orders(plan.cnf_orders)}")
     print(f"组 B（待技术完成）: {len(plan.teco_orders)} 单")
+    print(f"[TECO] 名单: {format_orders(plan.teco_orders)}")
     print(f"已管理（TECO+CNF）: {stats.get('managed', 0)} 单")
     print(f"异常/其他跳过: {stats.get('anomalies', 0)} 单")
 

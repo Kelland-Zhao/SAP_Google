@@ -15,7 +15,10 @@ STATUS_BAR = "wnd[0]/sbar"
 
 # 这些文本出现在状态栏时，即使消息类型是 S/W 也不能算成功。
 NEGATIVE_KEYWORDS = (
-    "未选择", "未选中", "没有选择", "not selected", "no orders",
+    "未选择", "未选中", "没有选择",
+    "未更改", "没有更改", "未变更", "没有变更",
+    "0 单", "0单",
+    "not selected", "no orders", "no change", "not changed",
 )
 
 _ORDER_POPUP = "wnd[0]/usr/btn%_AUFNR_%_APP_%-VALU_PUSH"

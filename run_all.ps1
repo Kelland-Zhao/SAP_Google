@@ -60,7 +60,17 @@ foreach ($Project in $Projects) {
     $Index++
     $ProjectPath = Join-Path $Root $Project
     $MainPy = Join-Path $ProjectPath "main.py"
-    
+
+    # 第一次 04 失败时，Total_Workorder 可能还是旧的；跳过 09，避免重复关单。
+    if ($Project -eq "09 - WorkOrderAutoClose" -and $FailedList -contains "04 - Total_Workorder") {
+        $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 跳过 $Project : 前一步 04 失败，Total_Workorder 可能不是最新"
+        Write-Host $Msg -ForegroundColor Yellow
+        $Msg | Out-File -Append $LogFile -Encoding UTF8
+        $Failed++
+        $FailedList += $Project
+        continue
+    }
+
     if (-not (Test-Path $MainPy)) {
         $Msg = "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] [$Index/$Total] 跳过 $Project : main.py 不存在"
         Write-Host $Msg -ForegroundColor Yellow

@@ -138,6 +138,13 @@ def parse_only_orders(raw):
     return parts or None
 
 
+def format_orders(decisions):
+    """把订单决策列表格式化成一行，便于 dry-run 核对名单。"""
+    if not decisions:
+        return "（无）"
+    return ", ".join(decision.order for decision in decisions)
+
+
 def rows_from_values(values):
     """把 Total_Workorder 的原始行转成 OrderRow；全空行跳过。"""
     if not values:
