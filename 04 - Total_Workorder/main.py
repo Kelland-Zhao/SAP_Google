@@ -83,7 +83,10 @@ def get_work_order(session):
         session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,6]").setFocus()
         session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,6]").caretPosition = 4
         session.findById("wnd[1]/tbar[0]/btn[8]").press()
-        
+
+        # 排除系统状态「结算」的订单（ctxtSTAE1-LOW 本身是排他输入）
+        session.findById("wnd[0]/usr/ctxtSTAE1-LOW").text = "结算"
+
         # 设置功能位置
         session.findById("wnd[0]/usr/ctxtSTRNO-LOW").text = "CN15*"
         

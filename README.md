@@ -106,7 +106,7 @@ python "03 - Safety_Stock_ZSE16\main.py" ; "退出码 = $LASTEXITCODE"
 | `01 - Maintenance_Effectiveness_Sync` | IW47 | 维护有效性 | `MasterData` |
 | `02 - Critical_A_ &_H_equipment_with_Maintenance_Plan_Sync` | IH08 → IP18 | A 级关键设备中有维护计划的比例 + 无计划设备清单 | `MasterData`、`无保养计划A类设备` |
 | `03 - Safety_Stock_ZSE16` | ZSE16 | 安全库存全量 | `安全库存数据` |
-| `04 - Total_Workorder` | IW39 | 动态 365 天工单总表（今天±365 天，全量替换） | `Total_Workorder` |
+| `04 - Total_Workorder` | IW39 | 动态 365 天工单总表（今天±365 天，全量替换；排除系统状态「结算」） | `Total_Workorder` |
 | `09 - WorkOrderAutoClose` | IW48 + IW38 | 工时确认 + 技术完成 | `WorkOrderClose_Log` |
 | `06 - IM_Equipment_Number` | IH08 | 设备编号（含 Tag 列） | `Equipment_Number_EAM` |
 | `07 - Inventory_MB52` | MB52 | 库存 | `MasterData` |
