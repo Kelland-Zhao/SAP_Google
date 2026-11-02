@@ -31,6 +31,7 @@ import gspread
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sap_common import (get_resource_path, ensure_sap_running,
                         open_session, close_session, close_sap)
+from total_workorder_utils import get_date_range
 
 # --- 核心配置 ---
 # 文件路径配置
@@ -41,30 +42,6 @@ OUTPUT_FILENAME = "Temporary_File.xlsx"
 GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1YzMGIQ2RcBlGIadWh5yfxlCmOpCuOBHpgKfEVz8_W98/edit?gid=0#gid=0'
 WORKSHEET_NAME = 'Total_Workorder'
 SERVICE_ACCOUNT_FILE = get_resource_path('pyreadsp-b5b9c1909de6.json')
-
-
-def get_date_range():
-    """
-    基于函数运行时间输出两个日期（Start_date, End_date）
-    Start_date = 运行年的1月1日，End_date = 运行年的12月31日
-    日期格式为 MM/DD/YYYY
-    
-    Returns:
-        tuple: (Start_date, End_date) 格式为 (MM/DD/YYYY, MM/DD/YYYY)
-    """
-    today = datetime.date.today()
-    
-    # 计算当年第一天
-    start_date = today.replace(month=1, day=1)
-    
-    # 计算当年最后一天
-    end_date = today.replace(month=12, day=31)
-    
-    # 格式化日期为 MM/DD/YYYY
-    start_date_str = start_date.strftime("%m/%d/%Y")
-    end_date_str = end_date.strftime("%m/%d/%Y")
-    
-    return start_date_str, end_date_str
 
 
 def get_work_order(session):
@@ -342,67 +319,30 @@ def write_to_google_sheet(excel_file_path, sheet_url, worksheet_name, auth_file,
         end_col_letter = col_num_to_letter(num_cols)
         range_name = f"A{start_row}:{end_col_letter}{end_row}"
         
-        # 5. 智能清空数据：只删除当年数据，保留往年数据
-        print(f"正在处理 Google Sheets 中的数据...")
+        # 5. 全量替换：清空旧数据行，保留表头
+        print("正在处理 Google Sheets 中的数据...")
         try:
-            # 获取当前年份
-            current_year = datetime.date.today().year
-            
-            # 获取工作表的所有数据
             all_values = worksheet.get_all_values()
-            
-            if len(all_values) > 1:  # 如果有数据行（不只是表头）
-                # A列（索引0）为"参考日期"，格式为YYYYMMDD
-                header = all_values[0]  # 保存表头
-                data_rows = all_values[1:]  # 数据行
-                
-                # 保留往年的数据
-                previous_years_data = []
-                for row in data_rows:
-                    if len(row) > 0:  # 确保行不为空
-                        ref_date = row[0]  # A列：参考日期
-                        
-                        # 从YYYYMMDD格式中提取年份
-                        if ref_date and len(str(ref_date)) >= 4:
-                            try:
-                                # 提取前4位作为年份
-                                year = int(str(ref_date)[:4])
-                                
-                                # 如果不是当年的数据，则保留
-                                if year != current_year:
-                                    previous_years_data.append(row)
-                            except (ValueError, TypeError):
-                                # 如果无法解析年份，跳过该行（不保留）
-                                pass
-                
-                # 清空所有数据（从第2行开始）
+            if len(all_values) > 1:
                 total_rows = len(all_values)
                 clear_range = f"A{start_row}:{end_col_letter}{total_rows}"
                 worksheet.batch_clear([clear_range])
-                print(f"✅ 已清空范围: {clear_range}")
-                
-                # 先写入往年数据
-                if previous_years_data:
-                    prev_end_row = start_row + len(previous_years_data) - 1
-                    prev_range = f"A{start_row}:{end_col_letter}{prev_end_row}"
-                    worksheet.update(range_name=prev_range, values=previous_years_data)
-                    print(f"✅ 已恢复 {len(previous_years_data)} 行往年数据")
-                    
-                    # 更新当年数据的写入起始行
-                    start_row = prev_end_row + 1
-                    end_row = start_row + num_rows - 1
-                    range_name = f"A{start_row}:{end_col_letter}{end_row}"
-                else:
-                    print(f"ℹ️ 没有往年数据需要保留")
-                    
+                print(f"✅ 已清空旧数据范围: {clear_range}")
         except Exception as e:
-            print(f"⚠️ 处理旧数据时出现警告: {e}，将采用完全覆盖模式...")
-        
-        # 6. 写入当年新数据
-        print(f"正在将当年数据写入 Google Sheets: {worksheet_name}，范围: {range_name}")
+            print(f"⚠️ 清空旧数据时出现警告: {e}，继续写入新数据...")
+
+        # 确保工作表行数足够容纳新数据
+        if worksheet.row_count < end_row:
+            worksheet.resize(
+                rows=end_row,
+                cols=max(worksheet.col_count, num_cols),
+            )
+
+        # 6. 写入最近 365 天的数据
+        print(f"正在将最近 365 天数据写入 Google Sheets: {worksheet_name}，范围: {range_name}")
         worksheet.update(range_name=range_name, values=data_to_write)
-        
-        print(f"✅ 成功将 {num_rows} 行当年数据写入 Google Sheet: {worksheet_name}（从第 {start_row} 行开始）")
+
+        print(f"✅ 成功将 {num_rows} 行最近 365 天数据写入 Google Sheet: {worksheet_name}（从第 {start_row} 行开始）")
         return True
         
     except gspread.exceptions.WorksheetNotFound:

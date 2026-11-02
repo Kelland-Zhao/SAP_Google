@@ -106,7 +106,7 @@ python "03 - Safety_Stock_ZSE16\main.py" ; "退出码 = $LASTEXITCODE"
 | `01 - Maintenance_Effectiveness_Sync` | IW47 | 维护有效性 | `MasterData` |
 | `02 - Critical_A_ &_H_equipment_with_Maintenance_Plan_Sync` | IH08 → IP18 | A 级关键设备中有维护计划的比例 + 无计划设备清单 | `MasterData`、`无保养计划A类设备` |
 | `03 - Safety_Stock_ZSE16` | ZSE16 | 安全库存全量 | `安全库存数据` |
-| `04 - Total_Workorder` | IW39 | 全年工单总表 | `Total_Workorder` |
+| `04 - Total_Workorder` | IW39 | 动态 365 天工单总表（今天±365 天，全量替换） | `Total_Workorder` |
 | `09 - WorkOrderAutoClose` | IW48 + IW38 | 工时确认 + 技术完成 | `WorkOrderClose_Log` |
 | `06 - IM_Equipment_Number` | IH08 | 设备编号（含 Tag 列） | `Equipment_Number_EAM` |
 | `07 - Inventory_MB52` | MB52 | 库存 | `MasterData` |
@@ -138,7 +138,7 @@ python "03 - Safety_Stock_ZSE16\main.py" ; "退出码 = $LASTEXITCODE"
 - 数据事实：`REL` 与 `CNF` 可以共存（存在 `REL CNF ...` 的行）；`TECO` 会移除 `REL`。
 - **单独运行 09 前必须先跑 04**，否则 Sheet 里的状态可能是旧的。
 - 如果第一次 `04` 失败，`run_all.ps1` 会跳过 `09`（避免用旧 Sheet 关单），第二次 `04` 仍会执行。
-- 已知限制：09 现在取 `K <= 今天-14天`（没有下限），上一年度及更早的行都可能被选中，而当前 04 只刷新当年数据，这些行的状态可能是旧的；后续把 04 改为动态 365 天后解决。
+- 04 已改为动态 365 天（今天±365 天）全量替换，`Total_Workorder` 只保留这个范围，更早的行会消失；09 不会再看到上一年度及更早的旧行。
 
 ### 不在 `run_all.ps1` 中（当前挂起）
 
