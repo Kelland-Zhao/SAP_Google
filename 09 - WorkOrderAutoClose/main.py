@@ -1,6 +1,8 @@
 """09 - 工单自动关闭。
 
-从 Total_Workorder 筛出基本开始日期在 14 天前或更早、非 PM01 的工单：
+从 Total_Workorder 筛出非 PM01、且已到可关闭日期的工单：
+  开始日 1–18 号 → 开始后第 8 天；开始日 19 号–月底 → 次月 6 号
+  （月底最后一天开始的单要等次月 7 号）。
   * 组 A（REL 且无 CNF/TECO）→ IW48 批量工时确认；
   * 组 B（REL+CNF 且无 TECO）→ IW38 批量技术完成；
   * 组 A 确认成功后，也并入同一轮 IW38。
@@ -23,6 +25,8 @@ from sap_common import (get_resource_path, ensure_sap_running,
 from workorder_close_utils import (
     ExecutionResult,
     LOG_HEADERS,
+    MONTH_END_LOCK_DAY,
+    MONTH_END_RELEASE_DAY,
     NORMAL_SKIP_REASONS,
     WINDOW_DAYS,
     build_log_rows,
@@ -98,13 +102,22 @@ def append_log_rows(sh, rows):
 
 def print_plan(plan, run_date):
     cutoff = run_date - datetime.timedelta(days=WINDOW_DAYS)
+    normal_last_day = MONTH_END_LOCK_DAY - WINDOW_DAYS
     stats = plan.stats
 
-    print(f"筛选条件: 基本开始日期 <= {cutoff}（今天往前 {WINDOW_DAYS} 天或更早）")
+    print(
+        f"筛选条件: 开始日 1–{normal_last_day} 号 -> 基本开始日期 <= {cutoff}"
+        f"（满 {WINDOW_DAYS} 天）；"
+        f"开始日 {normal_last_day + 1} 号–月底 -> "
+        f"次月 {MONTH_END_RELEASE_DAY} 号起（月底最后一天为 "
+        f"{MONTH_END_RELEASE_DAY + 1} 号）"
+    )
     print(
         f"读到 {stats.get('total_rows', 0)} 行；"
         f"排除 PM01 {stats.get('pm01', 0)} 行；"
-        f"未满 14 天 {stats.get('too_recent', 0)} 行；"
+        f"未满 {WINDOW_DAYS} 天 {stats.get('too_recent', 0)} 行；"
+        f"月末单待次月 {MONTH_END_RELEASE_DAY} 号 "
+        f"{stats.get('month_end_wait', 0)} 行；"
         f"无效 {stats.get('invalid', 0)} 行；"
         f"重复 {stats.get('duplicates', 0)} 行；"
         f"候选 {stats.get('candidates', 0)} 单"

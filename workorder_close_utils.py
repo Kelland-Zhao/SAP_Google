@@ -11,7 +11,10 @@ from dataclasses import dataclass
 
 from gap_utils import resolve_columns
 
-WINDOW_DAYS = 14
+WINDOW_DAYS = 7
+# 每月 25 号到月底系统锁定，不能做备件账；次月 6 号起才能关。
+MONTH_END_LOCK_DAY = 25
+MONTH_END_RELEASE_DAY = 6
 REQUIRED_COLUMNS = ["订单", "系统状态", "订单类型", "基本开始日期"]
 LOG_HEADERS = [
     "执行时间", "运行日期", "订单", "订单类型", "基本开始日期",
@@ -100,9 +103,40 @@ def parse_sheet_date(raw):
     return None
 
 
+def is_month_end_affected(start, window_days=WINDOW_DAYS):
+    """做账窗口是否碰到每月 25 号–月底的锁账期。
+
+    第 5 天最晚领备、做账最长 3 天，所以第 5–7 天（start+4 .. start+6）
+    都可能已经落在 25 号之后；只要最后一天做账日 >= 当月 25 号，
+    就会被打断，只能顺延到次月。
+    """
+    last_accounting_day = start + datetime.timedelta(days=window_days - 1)
+    return last_accounting_day >= datetime.date(
+        start.year, start.month, MONTH_END_LOCK_DAY)
+
+
+def _month_end_release_date(start):
+    """start 所在月份的次月 6 号；12 月顺延到次年 1 月。"""
+    if start.month == 12:
+        return datetime.date(start.year + 1, 1, MONTH_END_RELEASE_DAY)
+    return datetime.date(start.year, start.month + 1, MONTH_END_RELEASE_DAY)
+
+
+def close_release_date(start, window_days=WINDOW_DAYS):
+    """一张单最早可以关闭的日期。
+
+    正常是开始后第 8 天（start + window_days）；碰到月底锁账期的单，
+    顺延到次月 6 号。月底最后一天开始的单，自身第 8 天更晚，取较晚者。
+    """
+    ready = start + datetime.timedelta(days=window_days)
+    if not is_month_end_affected(start, window_days):
+        return ready
+    return max(ready, _month_end_release_date(start))
+
+
 def is_due_for_close(start, run_date, window_days=WINDOW_DAYS):
-    """基本开始日期在 run_date 往前 window_days 天或更早（含边界）。"""
-    return start <= run_date - datetime.timedelta(days=window_days)
+    """运行日是否已经到达该单的可关闭日期（含边界）。"""
+    return run_date >= close_release_date(start, window_days)
 
 
 def classify_status(statuses):
@@ -179,6 +213,7 @@ def build_plan(values, run_date, window_days=WINDOW_DAYS, only_orders=None):
         "total_rows": 0,
         "pm01": 0,
         "too_recent": 0,
+        "month_end_wait": 0,
         "invalid": 0,
         "duplicates": 0,
         "candidates": 0,
@@ -207,7 +242,10 @@ def build_plan(values, run_date, window_days=WINDOW_DAYS, only_orders=None):
             stats["invalid"] += 1
             continue
         if not is_due_for_close(start, run_date, window_days):
-            stats["too_recent"] += 1
+            if is_month_end_affected(start, window_days):
+                stats["month_end_wait"] += 1
+            else:
+                stats["too_recent"] += 1
             continue
 
         if row.order in seen:

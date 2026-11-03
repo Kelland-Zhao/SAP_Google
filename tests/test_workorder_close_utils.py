@@ -51,16 +51,53 @@ class ParseSheetDateTests(unittest.TestCase):
 
 
 class DueForCloseTests(unittest.TestCase):
-    def test_includes_cutoff_and_older(self):
-        run = datetime.date(2026, 11, 2)
-        self.assertTrue(is_due_for_close(datetime.date(2026, 10, 19), run))
-        self.assertTrue(is_due_for_close(datetime.date(2026, 10, 18), run))
-        self.assertTrue(is_due_for_close(datetime.date(2026, 1, 1), run))
+    def test_starts_on_or_before_18th_close_on_eighth_day(self):
+        run = datetime.date(2026, 10, 24)
+        self.assertTrue(is_due_for_close(datetime.date(2026, 10, 17), run))
+        self.assertFalse(is_due_for_close(datetime.date(2026, 10, 18), run))
+        self.assertTrue(is_due_for_close(
+            datetime.date(2026, 10, 18), datetime.date(2026, 10, 25)))
 
-    def test_rejects_recent_and_future(self):
+    def test_starts_on_19th_wait_for_sixth_of_next_month(self):
+        start = datetime.date(2026, 10, 19)
+        self.assertFalse(is_due_for_close(start, datetime.date(2026, 11, 5)))
+        self.assertTrue(is_due_for_close(start, datetime.date(2026, 11, 6)))
+
+    def test_starts_19th_through_second_to_last_wait_for_sixth(self):
+        for day in (19, 24, 25, 29, 30):
+            start = datetime.date(2026, 10, day)
+            with self.subTest(day=day):
+                self.assertFalse(
+                    is_due_for_close(start, datetime.date(2026, 11, 5)))
+                self.assertTrue(
+                    is_due_for_close(start, datetime.date(2026, 11, 6)))
+
+    def test_last_day_of_month_closes_on_its_eighth_day(self):
+        start = datetime.date(2026, 10, 31)  # 第 8 天 = 11/7
+        self.assertFalse(is_due_for_close(start, datetime.date(2026, 11, 6)))
+        self.assertTrue(is_due_for_close(start, datetime.date(2026, 11, 7)))
+
+    def test_december_wait_rolls_into_next_year(self):
+        start = datetime.date(2026, 12, 20)
+        self.assertFalse(is_due_for_close(start, datetime.date(2027, 1, 5)))
+        self.assertTrue(is_due_for_close(start, datetime.date(2027, 1, 6)))
+        last = datetime.date(2026, 12, 31)  # 第 8 天 = 2027-01-07
+        self.assertFalse(is_due_for_close(last, datetime.date(2027, 1, 6)))
+        self.assertTrue(is_due_for_close(last, datetime.date(2027, 1, 7)))
+
+    def test_february_boundary(self):
+        start = datetime.date(2026, 2, 19)
+        self.assertFalse(is_due_for_close(start, datetime.date(2026, 3, 5)))
+        self.assertTrue(is_due_for_close(start, datetime.date(2026, 3, 6)))
+        last = datetime.date(2026, 2, 28)  # 第 8 天 = 3/7
+        self.assertFalse(is_due_for_close(
+            last, datetime.date(2026, 3, 6)))
+        self.assertTrue(is_due_for_close(
+            last, datetime.date(2026, 3, 7)))
+
+    def test_old_starts_are_due_and_future_starts_are_not(self):
         run = datetime.date(2026, 11, 2)
-        self.assertFalse(is_due_for_close(datetime.date(2026, 10, 20), run))
-        self.assertFalse(is_due_for_close(run, run))
+        self.assertTrue(is_due_for_close(datetime.date(2026, 1, 1), run))
         self.assertFalse(is_due_for_close(datetime.date(2026, 11, 3), run))
 
 
@@ -152,6 +189,7 @@ class BuildPlanTests(unittest.TestCase):
             sheet_row(order="T1", status="TECO", order_type="PM02"),
             sheet_row(order="P1", status="REL", order_type="PM01"),
             sheet_row(order="O1", status="REL", start="2026-10-20"),
+            sheet_row(order="N1", status="REL", start="2026-11-01"),
             sheet_row(order="I1", status="REL", start="bad-date"),
         ), self.RUN_DATE)
         self.assertEqual([d.order for d in plan.cnf_orders], ["A1"])
@@ -160,6 +198,7 @@ class BuildPlanTests(unittest.TestCase):
                          {"M1": "已关闭(TECO+CNF)", "T1": "TECO无CNF"})
         self.assertEqual(plan.stats["pm01"], 1)
         self.assertEqual(plan.stats["too_recent"], 1)
+        self.assertEqual(plan.stats["month_end_wait"], 1)
         self.assertEqual(plan.stats["invalid"], 1)
         self.assertEqual(plan.stats["candidates"], 4)
         self.assertEqual(plan.stats["closed"], 1)
@@ -183,6 +222,12 @@ class BuildPlanTests(unittest.TestCase):
         self.assertEqual([d.order for d in plan.cnf_orders], ["A1"])
         self.assertEqual(plan.teco_orders, [])
         self.assertEqual(plan.stats["candidates"], 2)
+
+    def test_month_end_orders_become_due_after_sixth(self):
+        plan = build_plan(values(
+            sheet_row(order="ME1", status="REL", start="2026-10-19"),
+        ), datetime.date(2026, 11, 6))
+        self.assertEqual([d.order for d in plan.cnf_orders], ["ME1"])
 
     def test_blank_order_or_type_is_invalid(self):
         plan = build_plan(values(
