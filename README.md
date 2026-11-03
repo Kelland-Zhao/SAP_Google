@@ -140,6 +140,31 @@ python "03 - Safety_Stock_ZSE16\main.py" ; "退出码 = $LASTEXITCODE"
 - 如果第一次 `04` 失败，`run_all.ps1` 会跳过 `09`（避免用旧 Sheet 关单），第二次 `04` 仍会执行。
 - 04 已改为动态 365 天（今天±365 天）全量替换，`Total_Workorder` 只保留这个范围，更早的行会消失；09 不会再看到上一年度及更早的旧行。
 
+### `10` 的说明：一次性取消技术完成
+
+- 一次性工具，**不加入 `run_all.ps1`**，不做定时。
+- 数据源：同一 spreadsheet 的 `取消技术完成` 工作表；**没有表头**，A1 就是第一单。A 列订单号，B 列 `Done`，C 列失败原因。
+- 只处理 B 列为空的行；同一订单多行只调 SAP 一次。
+- 每单走 IW32：订单号 → 回车 → 菜单“取消技术完成” → 保存。**只能逐单执行**，没有批量功能。
+- 成功：B 写 `Done`，C 清空。失败：B 留空，C 写 `YYYY-MM-DD HH:MM:SS | 原因`；下次重跑会再试。
+- 成功判定从严：SAP 状态栏必须是 S/W、文本含“保存”/`saved`、且不含“未更改/未技术完成”等否定词；宁可误报失败，不可误报成功。
+- 退出码：`0` 全部成功/无事可做；`1` 任意失败、SAP 会话中止、或结果写不进 Sheet。
+- 运行命令：
+
+  ```powershell
+  python "10 - WorkOrderCancelTECO\main.py" --dry-run
+  python "10 - WorkOrderCancelTECO\main.py" --only-orders 5650370
+  python "10 - WorkOrderCancelTECO\main.py" ; "退出码 = $LASTEXITCODE"
+  ```
+
+- **与 `09` 的关系**：这批单当前是 `TECO CNF`，取消后回到 `REL CNF`。等基本开始日期超过 14 天，`09` 以后还会把它们重新技术完成。10 只负责撤销这一次，不阻止 09。
+
+### 不在 `run_all.ps1` 中（一次性工具）
+
+| 目录 | SAP 事务码 | 说明 |
+|---|---|---|
+| `10 - WorkOrderCancelTECO` | IW32 | 按 `取消技术完成` 工作表逐单撤销技术完成；B 列写 `Done`，C 列写失败原因 |
+
 ### 不在 `run_all.ps1` 中（当前挂起）
 
 这两个项目**因 SAP 系统层面的问题暂时不可用**，已挂起。不是脚本本身的问题，恢复后需单独手动运行。
@@ -224,6 +249,8 @@ pip install pywin32 openpyxl gspread google-auth requests urllib3 pandas numpy
 | **`sap_common.py`** | **各脚本共用的公共模块**，提供 `get_resource_path` / `start_sap` / `wait_for_sap_session` / `close_sap`。SAP 的系统、客户端、语言等配置也在这里 |
 | `workorder_close_utils.py` | `09` 的纯逻辑（筛选、分组、执行编排、日志行），不 import `win32com`，单元测试可在任何机器上跑 |
 | `workorder_close_sap.py` | `09` 的 SAP GUI 操作（IW48 批量工时确认、IW38 批量技术完成），只依赖传入的 session |
+| `workorder_cancel_utils.py` | `10` 的纯逻辑（解析、计划、执行编排），不 import `win32com` / `gspread`，单元测试可在任何机器上跑 |
+| `workorder_cancel_sap.py` | `10` 的 SAP GUI 操作（IW32 取消技术完成），只依赖传入的 session |
 | `run_all.log` | 运行日志（含代码版本、每步耗时、每个脚本的退出码） |
 | `*/batch_update.py` | **一次性历史回填脚本**（`00`/`01`/`02` 各一份），用硬编码的月份列表补跑历史数据，日常运行不会执行。**尚未迁到 `sap_common`** |
 | `08 - .../*.vbs`、`*/*.txt` | SAP GUI 录制脚本及其导出产物，历史遗留 |
