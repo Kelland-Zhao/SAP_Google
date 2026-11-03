@@ -2,7 +2,7 @@
 
 从 Total_Workorder 筛出非 PM01、且已到可关闭日期的工单：
   开始日 1–18 号 → 开始后第 8 天；开始日 19 号–月底 → 次月 6 号
-  （月底最后一天开始的单要等次月 7 号）。
+  （月底最后一天开始的工单要等次月 7 号）。
   * 组 A（REL 且无 CNF/TECO）→ IW48 批量工时确认；
   * 组 B（REL+CNF 且无 TECO）→ IW38 批量技术完成；
   * 组 A 确认成功后，也并入同一轮 IW38。
@@ -116,18 +116,18 @@ def print_plan(plan, run_date):
         f"读到 {stats.get('total_rows', 0)} 行；"
         f"排除 PM01 {stats.get('pm01', 0)} 行；"
         f"未满 {WINDOW_DAYS} 天 {stats.get('too_recent', 0)} 行；"
-        f"月末单待次月 {MONTH_END_RELEASE_DAY} 号 "
+        f"月末工单待次月 {MONTH_END_RELEASE_DAY} 号 "
         f"{stats.get('month_end_wait', 0)} 行；"
         f"无效 {stats.get('invalid', 0)} 行；"
         f"重复 {stats.get('duplicates', 0)} 行；"
-        f"候选 {stats.get('candidates', 0)} 单"
+        f"候选 {stats.get('candidates', 0)} 张工单"
     )
-    print(f"组 A（待工时确认）: {len(plan.cnf_orders)} 单")
-    print(f"[CNF] 名单: {format_orders(plan.cnf_orders)}")
-    print(f"组 B（待技术完成）: {len(plan.teco_orders)} 单")
-    print(f"[TECO] 名单: {format_orders(plan.teco_orders)}")
-    print(f"已关闭（TECO+CNF）: {stats.get('closed', 0)} 单")
-    print(f"异常/其他跳过: {stats.get('anomalies', 0)} 单")
+    print(f"组 A（待工时确认）: {len(plan.cnf_orders)} 张工单")
+    print(f"[CNF] 工单名单: {format_orders(plan.cnf_orders)}")
+    print(f"组 B（待技术完成）: {len(plan.teco_orders)} 张工单")
+    print(f"[TECO] 工单名单: {format_orders(plan.teco_orders)}")
+    print(f"已关闭（TECO+CNF）: {stats.get('closed', 0)} 张工单")
+    print(f"异常/其他跳过: {stats.get('anomalies', 0)} 张工单")
 
     for warning in plan.warnings:
         print(f"⚠️ {warning}")
@@ -136,7 +136,7 @@ def print_plan(plan, run_date):
     for decision in plan.skipped:
         skip_counts[decision.reason] = skip_counts.get(decision.reason, 0) + 1
     for reason, count in sorted(skip_counts.items()):
-        print(f"[SKIP] {reason}: {count} 单")
+        print(f"[SKIP] {reason}: {count} 张工单")
 
     for decision in plan.skipped:
         if decision.reason not in NORMAL_SKIP_REASONS:
@@ -147,7 +147,7 @@ def print_execution(execution):
     cnf_records = [r for r in execution.records if r.action == "工时确认"]
     if cnf_records:
         orders = [r.decision.order for r in cnf_records]
-        print(f"[CNF] 批量提交 {len(orders)} 单: {', '.join(orders)}")
+        print(f"[CNF] 批量提交 {len(orders)} 张工单: {', '.join(orders)}")
         print(f"[CNF] SAP 返回: {cnf_records[0].message}")
         for record in cnf_records:
             status = "成功" if record.success else "失败"
@@ -156,7 +156,7 @@ def print_execution(execution):
     teco_records = [r for r in execution.records if r.action == "技术完成"]
     if teco_records:
         orders = [r.decision.order for r in teco_records]
-        print(f"[TECO] 批量提交 {len(orders)} 单: {', '.join(orders)}")
+        print(f"[TECO] 批量提交 {len(orders)} 张工单: {', '.join(orders)}")
         print(f"[TECO] SAP 返回: {teco_records[0].message}")
         for record in teco_records:
             status = "成功" if record.success else "失败"

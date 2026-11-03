@@ -2,7 +2,7 @@
 
 读同一 spreadsheet 的 `取消技术完成` 工作表：
   * A 列订单号，B 列 Done，C 列失败原因；没有表头。
-  * 只处理 B 列为空的行；逐单用 IW32 取消技术完成。
+  * 只处理 B 列为空的行；逐张工单用 IW32 取消技术完成。
   * 成功写 B=Done 并清空 C；失败写 C=时间 | 原因，B 保持空。
 
 这是一次性工具，不加入 run_all.ps1。
@@ -68,7 +68,7 @@ def print_plan(plan, only_orders):
         f"已处理(Done) {stats['done']} 行；"
         f"空订单 {stats['empty_order']} 行；"
         f"筛选掉 {stats['filtered']} 行；"
-        f"待处理 {stats['pending_orders']} 单（{stats['pending_rows']} 行）"
+        f"待处理 {stats['pending_orders']} 张工单（{stats['pending_rows']} 行）"
     )
     print(f"待处理订单: {format_orders(plan)}")
     if only_orders is not None:
@@ -99,8 +99,8 @@ def print_summary(plan, execution):
     successes = [record for record in execution.records if record.success]
     failures = [record for record in execution.records if not record.success]
     print(
-        f"==== 完成：成功 {len(successes)} 单，"
-        f"失败 {len(failures)} 单，"
+        f"==== 完成：成功 {len(successes)} 张工单，"
+        f"失败 {len(failures)} 张工单，"
         f"已处理跳过 {plan.stats['done']} 行 ===="
     )
     if failures:

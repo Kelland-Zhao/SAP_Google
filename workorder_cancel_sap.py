@@ -99,7 +99,7 @@ def _dismiss_popup(session):
 
 
 def _dismiss_stray_popup(session):
-    """进单前清掉上一单可能留下的弹窗，最多两次。"""
+    """进入工单前清掉上一张工单可能留下的弹窗，最多两次。"""
     for _ in range(2):
         exists, _, _ = _popup_state(session)
         if not exists:
@@ -108,7 +108,7 @@ def _dismiss_stray_popup(session):
 
 
 def cancel_technical_completion(session, order):
-    """IW32：取消单笔工单的技术完成。"""
+    """IW32：取消一张工单的技术完成。"""
     try:
         _dismiss_stray_popup(session)
 

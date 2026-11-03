@@ -170,7 +170,7 @@ def execute_plan(
     write_fn: Callable[[list[tuple[int, int, str]]], bool],
     timestamp: str,
 ) -> ExecutionResult:
-    """逐单执行；会话级失败中止，单笔失败继续。"""
+    """逐张工单执行；会话级失败中止，个别工单失败继续。"""
     records = []
     pending_writes = []
     aborted = False

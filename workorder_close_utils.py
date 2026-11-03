@@ -123,10 +123,10 @@ def _month_end_release_date(start):
 
 
 def close_release_date(start, window_days=WINDOW_DAYS):
-    """一张单最早可以关闭的日期。
+    """一张工单最早可以关闭的日期。
 
-    正常是开始后第 8 天（start + window_days）；碰到月底锁账期的单，
-    顺延到次月 6 号。月底最后一天开始的单，自身第 8 天更晚，取较晚者。
+    正常是开始后第 8 天（start + window_days）；碰到月底锁账期的工单，
+    顺延到次月 6 号。月底最后一天开始的工单，自身第 8 天更晚，取较晚者。
     """
     ready = start + datetime.timedelta(days=window_days)
     if not is_month_end_affected(start, window_days):
@@ -135,7 +135,7 @@ def close_release_date(start, window_days=WINDOW_DAYS):
 
 
 def is_due_for_close(start, run_date, window_days=WINDOW_DAYS):
-    """运行日是否已经到达该单的可关闭日期（含边界）。"""
+    """运行日是否已经到达该工单的可关闭日期（含边界）。"""
     return run_date >= close_release_date(start, window_days)
 
 
