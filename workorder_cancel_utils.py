@@ -7,6 +7,7 @@ main.py 只负责 SAP / Google Sheets 的管路；读行、去重、计划和单
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Callable
 
 DONE = "Done"
 COL_ORDER = 1
@@ -33,6 +34,22 @@ class PlanResult:
     orders: list[PendingOrder]
     stats: dict[str, int]
     warnings: list[str]
+
+
+@dataclass(frozen=True)
+class ActionRecord:
+    order: str
+    success: bool
+    message: str
+    row_numbers: tuple[int, ...]
+
+
+@dataclass
+class ExecutionResult:
+    records: list[ActionRecord]
+    pending_writes: list[tuple[int, int, str]]
+    aborted: bool
+    exit_code: int
 
 
 class SessionLostError(RuntimeError):
@@ -145,3 +162,46 @@ def success_updates(pending):
 def failure_updates(pending, reason):
     """失败：只写 C，B 保持空。"""
     return [(row.row_number, COL_REASON, reason) for row in pending.rows]
+
+
+def execute_plan(
+    plan: PlanResult,
+    cancel_fn: Callable[[str], tuple[bool, str]],
+    write_fn: Callable[[list[tuple[int, int, str]]], bool],
+    timestamp: str,
+) -> ExecutionResult:
+    """逐单执行；会话级失败中止，单笔失败继续。"""
+    records = []
+    pending_writes = []
+    aborted = False
+
+    for pending in plan.orders:
+        try:
+            ok, message = cancel_fn(pending.order)
+        except SessionLostError:
+            aborted = True
+            break
+
+        if ok:
+            updates = success_updates(pending)
+        else:
+            message = message or "SAP 未返回消息"
+            updates = failure_updates(
+                pending, failure_reason(timestamp, message),
+            )
+
+        records.append(ActionRecord(
+            order=pending.order,
+            success=ok,
+            message=message,
+            row_numbers=tuple(row.row_number for row in pending.rows),
+        ))
+        if not write_fn(updates):
+            pending_writes.extend(updates)
+
+    exit_code = 1 if (
+        aborted
+        or pending_writes
+        or any(not record.success for record in records)
+    ) else 0
+    return ExecutionResult(records, pending_writes, aborted, exit_code)

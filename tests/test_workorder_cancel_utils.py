@@ -1,8 +1,8 @@
 import unittest
 
 from workorder_cancel_utils import (
-    build_plan, failure_reason, failure_updates, parse_only_orders,
-    parse_rows, success_updates,
+    SessionLostError, build_plan, execute_plan, failure_reason,
+    failure_updates, parse_only_orders, parse_rows, success_updates,
 )
 
 
@@ -97,3 +97,53 @@ class ParseOnlyOrdersTests(unittest.TestCase):
 
     def test_blank_returns_none(self):
         self.assertIsNone(parse_only_orders("  "))
+
+
+class ExecutePlanTests(unittest.TestCase):
+    def setUp(self):
+        self.plan = build_plan([["5650370", "", ""], ["5655247", "", ""]])
+        self.written = []
+
+    def test_success_writes_done(self):
+        result = execute_plan(
+            self.plan,
+            lambda order: (True, "已保存"),
+            lambda updates: self.written.extend(updates) or True,
+            "T",
+        )
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(self.written[0], (1, 2, "Done"))
+        self.assertEqual(len(result.records), 2)
+
+    def test_failure_writes_reason_and_continues(self):
+        calls = []
+
+        def cancel(order):
+            calls.append(order)
+            if order == "5650370":
+                return False, "已锁定"
+            return True, "已保存"
+
+        result = execute_plan(self.plan, cancel, lambda updates: True, "T")
+        self.assertEqual(calls, ["5650370", "5655247"])
+        self.assertEqual(result.exit_code, 1)
+        self.assertFalse(result.records[0].success)
+        self.assertEqual(result.records[0].message, "已锁定")
+
+    def test_abort_stops_remaining_orders(self):
+        def cancel(order):
+            raise SessionLostError("会话没了")
+
+        result = execute_plan(self.plan, cancel, lambda updates: [], "T")
+        self.assertTrue(result.aborted)
+        self.assertEqual(result.records, [])
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.pending_writes, [])
+
+    def test_failed_write_is_returned_for_retry(self):
+        result = execute_plan(
+            self.plan, lambda order: (True, "已保存"),
+            lambda updates: False, "T",
+        )
+        self.assertEqual(len(result.pending_writes), 4)
+        self.assertEqual(result.exit_code, 1)
