@@ -2,7 +2,8 @@ import unittest
 
 from workorder_cancel_utils import (
     SessionLostError, build_plan, execute_plan, failure_reason,
-    failure_updates, parse_only_orders, parse_rows, success_updates,
+    failure_updates, parse_only_orders, parse_rows, pending_write_orders,
+    success_updates,
 )
 
 
@@ -147,3 +148,39 @@ class ExecutePlanTests(unittest.TestCase):
         )
         self.assertEqual(len(result.pending_writes), 4)
         self.assertEqual(result.exit_code, 1)
+
+
+class PendingWriteOrdersTests(unittest.TestCase):
+    def test_lists_order_and_rows_for_failed_writes(self):
+        plan = build_plan([["5650370", "", ""], ["5655247", "", ""]])
+
+        def write(updates):
+            return not any(row == 1 for row, _col, _value in updates)
+
+        result = execute_plan(
+            plan, lambda order: (True, "已保存"), write, "T",
+        )
+        self.assertEqual(pending_write_orders(result), [("5650370", (1,))])
+
+    def test_lists_all_rows_of_a_failed_batch_once(self):
+        plan = build_plan([
+            ["5650370", "", ""],
+            ["5655247", "", ""],
+            ["5650370", "", ""],
+        ])
+
+        def write(updates):
+            return not any(row == 3 for row, _col, _value in updates)
+
+        result = execute_plan(
+            plan, lambda order: (True, "已保存"), write, "T",
+        )
+        self.assertEqual(pending_write_orders(result), [("5650370", (1, 3))])
+
+    def test_returns_empty_when_all_writes_succeeded(self):
+        plan = build_plan([["5650370", "", ""]])
+        result = execute_plan(
+            plan, lambda order: (True, "已保存"),
+            lambda updates: True, "T",
+        )
+        self.assertEqual(pending_write_orders(result), [])

@@ -26,6 +26,7 @@ from workorder_cancel_utils import (
     execute_plan,
     format_orders,
     parse_only_orders,
+    pending_write_orders,
 )
 from workorder_cancel_sap import cancel_technical_completion, prepare_session
 
@@ -170,9 +171,12 @@ def run(argv=None):
             final_write_ok = write_updates(ws, execution.pending_writes)
             if not final_write_ok:
                 print(
-                    "❌ 仍有结果写不进 Sheet，"
-                    "请按上面的订单清单手工补写 B/C 列。"
+                    "❌ 仍有结果写不进 Sheet；请手工补写以下行"
+                    "（成功的 B 写 Done、C 清空；失败的 C 写原因）："
                 )
+                for order, rows in pending_write_orders(execution):
+                    row_text = ", ".join(str(row) for row in rows)
+                    print(f"  - 订单 {order}，行 {row_text}")
 
         print_summary(plan, execution)
 

@@ -205,3 +205,18 @@ def execute_plan(
         or any(not record.success for record in records)
     ) else 0
     return ExecutionResult(records, pending_writes, aborted, exit_code)
+
+
+def pending_write_orders(execution):
+    """列出仍待手工补写的订单和行号，按 records 顺序、每单一行。"""
+    pending_rows = {
+        row for row, _column, _value in execution.pending_writes
+    }
+    result = []
+    for record in execution.records:
+        rows = tuple(
+            row for row in record.row_numbers if row in pending_rows
+        )
+        if rows:
+            result.append((record.order, rows))
+    return result
